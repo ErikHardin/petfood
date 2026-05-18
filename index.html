@@ -1143,6 +1143,11 @@ async function lookupBarcode(barcode) {
     const result = await lookupUPCItemDB(code);
     if (result) return result;
   }
+  // Fallback: Datakick community UPC database
+  for (const code of codes) {
+    const result = await lookupDatakick(code);
+    if (result) return result;
+  }
   return null;
 }
 
@@ -1187,6 +1192,40 @@ function parseUPCItem(item) {
   else if (txt.includes('shrimp'))  protein = 'Shrimp';
 
   return { brand, flavor, type, protein, notes: '', photo };
+}
+
+async function lookupDatakick(barcode) {
+  try {
+    // Datakick uses GTIN-14 (pad to 14 digits)
+    const gtin14 = barcode.padStart(14, '0');
+    const resp = await fetch(`https://www.datakick.org/api/items/${encodeURIComponent(gtin14)}`);
+    if (!resp.ok) return null;
+    const item = await resp.json();
+    if (!item || !item.name) return null;
+    const brand = item.brand_name || '';
+    let flavor = item.name || '';
+    if (brand && flavor.toLowerCase().startsWith(brand.toLowerCase())) {
+      flavor = flavor.slice(brand.length).replace(/^[\s\-:,]+/, '').trim();
+    }
+    const photo = (item.images && item.images[0] && item.images[0].url) || null;
+    const txt = (item.name + ' ' + (item.description || '')).toLowerCase();
+    let type = '';
+    if      (txt.includes('pate') || txt.includes('pâté')) type = 'Pâté';
+    else if (txt.includes('gravy'))                         type = 'Gravy';
+    else if (txt.includes('shred'))                         type = 'Shreds';
+    else if (txt.includes('chunk'))                         type = 'Chunks';
+    else if (txt.includes('broth'))                         type = 'Broth';
+    else if (txt.includes('mousse'))                        type = 'Mousse';
+    let protein = '';
+    if      (txt.includes('chicken')) protein = 'Chicken';
+    else if (txt.includes('turkey'))  protein = 'Turkey';
+    else if (txt.includes('salmon'))  protein = 'Salmon';
+    else if (txt.includes('tuna'))    protein = 'Tuna';
+    else if (txt.includes('beef'))    protein = 'Beef';
+    else if (txt.includes('duck'))    protein = 'Duck';
+    else if (txt.includes('shrimp'))  protein = 'Shrimp';
+    return { brand, flavor, type, protein, notes: '', photo };
+  } catch { return null; }
 }
 
 async function lookupOFF(barcode) {
@@ -1257,7 +1296,13 @@ function applyFields(p) {
       if (o.text.toLowerCase() === p[key].toLowerCase()) { sel.value = o.value; break; }
     }
   }
-  if (p.photo) pendingProductPhoto = p.photo;
+  if (p.photo) {
+    pendingProductPhoto = p.photo;
+    const preview = document.getElementById('photoPreview');
+    preview.src = p.photo;
+    preview.style.display = 'block';
+    ['phIcon', 'phText'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  }
 }
 
 // ═══════════════════════════════════════════════
