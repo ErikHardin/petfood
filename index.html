@@ -1104,22 +1104,89 @@ window.closeScanner = function() {
 };
 
 async function handleBarcodeResult(barcode) {
-  showToast('Barcode found — looking up…');
   try {
     const product = await lookupBarcode(barcode);
-    if (!product) { showToast('Product not in database — fill in manually 📝'); return; }
+    if (!product) { showToast('Product not found — fill in manually 📝'); return; }
     applyFields(product);
     document.getElementById('aiBadge').classList.add('on');
     showToast('📦 Auto-filled from barcode!');
   } catch { showToast('Lookup failed — fill in manually 📝'); }
 }
 
+function expandUPCE(code) {
+  // UPC-E (8 digits) → UPC-A (12 digits)
+  if (code.length !== 8) return null;
+  const ns = code[0], e = code.slice(1, 7), ck = code[7], d = parseInt(e[5]);
+  let mfr, prd;
+  if      (d <= 2)  { mfr = e[0]+e[1]+e[5]+'00';     prd = '00'+e[2]+e[3]+e[4]; }
+  else if (d === 3) { mfr = e[0]+e[1]+e[2]+'00';      prd = '000'+e[3]+e[4];     }
+  else if (d === 4) { mfr = e[0]+e[1]+e[2]+e[3]+'0';  prd = '0000'+e[4];         }
+  else              { mfr = e[0]+e[1]+e[2]+e[3]+e[4]; prd = '0000'+e[5];         }
+  return ns + mfr + prd + ck;
+}
+
 async function lookupBarcode(barcode) {
-  // 1. Open Pet Food Facts
-  // 2. Open Food Facts
-  // 3. UPC Item DB (retail database, no key needed for trial, 100/day)
-  const result = await lookupOFF(barcode) || await lookupUPCItemDB(barcode);
-  return result;
+  const codes = new Set([barcode]);
+  // Expand UPC-E (8-digit) → UPC-A (12-digit)
+  if (barcode.length === 8) { const x = expandUPCE(barcode); if (x) codes.add(x); }
+  // UPC-A (12-digit) → EAN-13 (prepend 0)
+  for (const c of [...codes]) if (c.length === 12) codes.add('0' + c);
+  // EAN-13 starting with 0 → UPC-A
+  for (const c of [...codes]) if (c.length === 13 && c.startsWith('0')) codes.add(c.slice(1));
+
+  for (const code of codes) {
+    const result = await lookupOFF(code);
+    if (result) return result;
+  }
+  // Fallback: UPCItemDB via CORS proxy (broad US retail coverage)
+  for (const code of codes) {
+    const result = await lookupUPCItemDB(code);
+    if (result) return result;
+  }
+  return null;
+}
+
+async function lookupUPCItemDB(barcode) {
+  try {
+    const inner = `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`;
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(inner)}`;
+    const resp = await fetch(proxy);
+    if (!resp.ok) return null;
+    const outer = await resp.json();
+    if (!outer.contents || (outer.status && outer.status.http_code !== 200)) return null;
+    const data = JSON.parse(outer.contents);
+    if (data.code !== 'OK' || !data.total || !data.items || !data.items.length) return null;
+    return parseUPCItem(data.items[0]);
+  } catch { return null; }
+}
+
+function parseUPCItem(item) {
+  const brand = item.brand || '';
+  let flavor = item.title || '';
+  if (brand && flavor.toLowerCase().startsWith(brand.toLowerCase())) {
+    flavor = flavor.slice(brand.length).replace(/^[\s\-:,]+/, '').trim();
+  }
+  const photo = (item.images && item.images[0]) || null;
+  const txt = (item.title + ' ' + (item.description || '')).toLowerCase();
+
+  let type = '';
+  if      (txt.includes('pate') || txt.includes('pâté')) type = 'Pâté';
+  else if (txt.includes('gravy'))                         type = 'Gravy';
+  else if (txt.includes('shred'))                         type = 'Shreds';
+  else if (txt.includes('chunk'))                         type = 'Chunks';
+  else if (txt.includes('broth'))                         type = 'Broth';
+  else if (txt.includes('mousse'))                        type = 'Mousse';
+
+  let protein = '';
+  if      (txt.includes('chicken')) protein = 'Chicken';
+  else if (txt.includes('turkey'))  protein = 'Turkey';
+  else if (txt.includes('salmon'))  protein = 'Salmon';
+  else if (txt.includes('tuna'))    protein = 'Tuna';
+  else if (txt.includes('beef'))    protein = 'Beef';
+  else if (txt.includes('duck'))    protein = 'Duck';
+  else if (txt.includes('shrimp'))  protein = 'Shrimp';
+
+  return { brand, flavor, type, protein, notes: '', photo };
 }
 
 async function lookupOFF(barcode) {
@@ -1135,40 +1202,6 @@ async function lookupOFF(barcode) {
   return null;
 }
 
-async function lookupUPCItemDB(barcode) {
-  try {
-    const resp = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`);
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    if (!data.items?.length) return null;
-    const item = data.items[0];
-    const txt  = (item.title + ' ' + (item.description || '') + ' ' + (item.category || '')).toLowerCase();
-
-    let type = '';
-    if      (txt.includes('pate') || txt.includes('pâté')) type = 'Pâté';
-    else if (txt.includes('gravy'))                         type = 'Gravy';
-    else if (txt.includes('shred'))                        type = 'Shreds';
-    else if (txt.includes('chunk'))                        type = 'Chunks';
-    else if (txt.includes('broth'))                        type = 'Broth';
-    else if (txt.includes('mousse'))                       type = 'Mousse';
-
-    let protein = '';
-    if      (txt.includes('chicken')) protein = 'Chicken';
-    else if (txt.includes('turkey'))  protein = 'Turkey';
-    else if (txt.includes('salmon'))  protein = 'Salmon';
-    else if (txt.includes('tuna'))    protein = 'Tuna';
-    else if (txt.includes('beef'))    protein = 'Beef';
-    else if (txt.includes('duck'))    protein = 'Duck';
-    else if (txt.includes('shrimp'))  protein = 'Shrimp';
-
-    return {
-      brand:   item.brand || '',
-      flavor:  item.title || '',
-      type, protein, notes: '',
-      photo:   item.images?.[0] || null
-    };
-  } catch { return null; }
-}
 
 function parseProduct(p) {
   const brand  = p.brands ? p.brands.split(',')[0].trim() : '';
