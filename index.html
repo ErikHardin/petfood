@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#FDF6EC">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -154,8 +154,6 @@ main::-webkit-scrollbar{width:0;}
 .scan-overlay.on{display:flex;}
 .spin{width:30px;height:30px;border:3px solid rgba(255,255,255,.25);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
-.ai-badge{display:inline-flex;align-items:center;gap:4px;background:var(--green-lt);color:var(--green);border:1px solid var(--green-bd);border-radius:20px;font-size:10px;font-weight:500;padding:2px 8px;margin-left:8px;opacity:0;transition:opacity .4s;}
-.ai-badge.on{opacity:1;}
 
 /* ── FIELDS ── */
 .food-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px;}
@@ -170,7 +168,6 @@ main::-webkit-scrollbar{width:0;}
 .fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--rust);}
 .fg.full{grid-column:1/-1;}
 .fg textarea{resize:none;min-height:58px;}
-.ai-filled{background:var(--green-lt)!important;border-color:var(--green-bd)!important;}
 
 /* ── CAT CARDS ── */
 .cats-section{display:flex;flex-direction:column;gap:11px;margin-top:4px;}
@@ -378,52 +375,6 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 /* ── RATE LATER BADGE ── */
 .cat-badge.rate-later{background:var(--amber-lt);color:var(--amber);border:1px dashed var(--amber);}
 
-/* ── SCAN BUTTON ── */
-.scan-btn{
-  grid-column:1/-1;width:100%;padding:13px;background:var(--rust);color:white;
-  border:none;border-radius:var(--r);font-size:15px;font-weight:500;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  gap:8px;margin-bottom:2px;transition:opacity .2s;font-family:'DM Sans',sans-serif;
-}
-.scan-btn:active{opacity:.8;}
-
-/* ── LIVE SCANNER MODAL ── */
-#scannerModal{
-  position:fixed;inset:0;z-index:600;
-  background:#000;display:flex;flex-direction:column;align-items:center;
-}
-#scannerModal.hidden{display:none;}
-#scannerVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
-.scanner-ui{
-  position:relative;z-index:1;width:100%;height:100%;
-  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-  padding:48px 24px 52px;
-}
-.scanner-hint{
-  color:white;font-size:14px;text-align:center;
-  text-shadow:0 1px 6px rgba(0,0,0,.9);letter-spacing:.2px;
-}
-.scanner-frame{
-  width:280px;height:165px;position:relative;
-  box-shadow:0 0 0 100vmax rgba(0,0,0,.58);border-radius:6px;
-}
-.scanner-corner{position:absolute;width:24px;height:24px;border-color:white;border-style:solid;}
-.scanner-corner.tl{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
-.scanner-corner.tr{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0;}
-.scanner-corner.bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px;}
-.scanner-corner.br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
-.scanner-line{
-  position:absolute;left:4px;right:4px;height:2px;
-  background:linear-gradient(90deg,transparent,var(--rust-lt),transparent);
-  animation:scanline 2s ease-in-out infinite;
-}
-@keyframes scanline{0%,100%{top:8px;}50%{top:calc(100% - 10px);}}
-.scanner-cancel{
-  background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.5);
-  color:white;padding:12px 44px;border-radius:28px;font-size:15px;
-  cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;
-  backdrop-filter:blur(8px);
-}
 
 /* ── PIN LOCK SCREEN ── */
 #pinScreen{
@@ -521,21 +472,6 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
   </div>
 </div>
 
-<!-- LIVE SCANNER MODAL -->
-<div id="scannerModal" class="hidden">
-  <video id="scannerVideo" playsinline muted></video>
-  <div class="scanner-ui">
-    <p class="scanner-hint">Point the barcode at the target</p>
-    <div class="scanner-frame">
-      <div class="scanner-line"></div>
-      <span class="scanner-corner tl"></span>
-      <span class="scanner-corner tr"></span>
-      <span class="scanner-corner bl"></span>
-      <span class="scanner-corner br"></span>
-    </div>
-    <button class="scanner-cancel" onclick="closeScanner()">Cancel</button>
-  </div>
-</div>
 
 <header>
   <div class="logo">
@@ -561,7 +497,6 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
     <div class="card">
       <div class="card-label">
         📷 Food Photo
-        <span class="ai-badge" id="aiBadge">📦 Auto-filled</span>
       </div>
       <div class="photo-zone" id="photoZone">
         <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(event)" id="photoInput">
@@ -570,10 +505,7 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
         <div class="ph-text" id="phText">Tap to add a journal photo<br><span style="font-size:11px;opacity:.7">(optional)</span></div>
       </div>
       <div class="food-meta">
-        <button class="scan-btn" onclick="openScanner()">
-          <span style="font-size:20px">📷</span> Scan Barcode to Fill In
-        </button>
-        <div class="fg"><label>Brand</label><input type="text" id="fBrand" placeholder="e.g. Fancy Feast"></div>
+<div class="fg"><label>Brand</label><input type="text" id="fBrand" placeholder="e.g. Fancy Feast"></div>
         <div class="fg"><label>Flavor / Name</label><input type="text" id="fFlavor" placeholder="e.g. Chicken Gravy"></div>
         <div class="fg">
           <label>Texture</label>
@@ -671,7 +603,7 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 
     <div class="card">
       <div class="card-label">📅 Date range needed</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
+      <div style="display:flex;flex-direction:column;gap:9px;">
         <div class="fg"><label>Starting</label><input type="date" id="oFrom"></div>
         <div class="fg"><label>Through</label><input type="date" id="oTo"></div>
       </div>
@@ -1014,296 +946,6 @@ window.switchPage = function(name) {
   window.scrollTo(0,0);
 };
 
-// ═══════════════════════════════════════════════
-//  LIVE BARCODE SCANNER
-// ═══════════════════════════════════════════════
-let _scanActive  = false;
-let _zxingLoaded = false;
-let _zxingReader = null;
-
-async function loadZXing() {
-  if (_zxingLoaded) return;
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.0/umd/index.min.js';
-    s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-  _zxingLoaded = true;
-}
-
-async function startCamera() {
-  try {
-    return await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-  } catch(e) {
-    if (e.name === 'NotAllowedError') throw e;
-    return await navigator.mediaDevices.getUserMedia({ video: true });
-  }
-}
-
-window.openScanner = async function() {
-  document.getElementById('scannerModal').classList.remove('hidden');
-  _scanActive = true;
-  const video = document.getElementById('scannerVideo');
-
-  // Native BarcodeDetector (Chrome / Edge)
-  if ('BarcodeDetector' in window) {
-    let stream;
-    try { stream = await startCamera(); }
-    catch(e) {
-      closeScanner();
-      showToast(e.name === 'NotAllowedError'
-        ? 'Camera permission denied — check Settings 📷'
-        : 'Camera unavailable — fill in manually 📝');
-      return;
-    }
-    video.srcObject = stream;
-    try { await video.play(); } catch {}
-    const detector = new BarcodeDetector();
-    const tick = async () => {
-      if (!_scanActive) return;
-      try {
-        const r = await detector.detect(video);
-        if (r.length) { closeScanner(); await handleBarcodeResult(r[0].rawValue); return; }
-      } catch {}
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-    return;
-  }
-
-  // ZXing fallback (Safari / Firefox — manages its own stream)
-  try {
-    await loadZXing();
-    _zxingReader = new ZXing.BrowserMultiFormatReader();
-    await _zxingReader.decodeFromConstraints(
-      { video: { facingMode: 'environment' } },
-      video,
-      async (result, err) => {
-        if (!_scanActive) return;
-        if (result) { closeScanner(); await handleBarcodeResult(result.getText()); }
-        else if (err && err.name === 'NotAllowedError') {
-          closeScanner(); showToast('Camera permission denied — check Settings 📷');
-        }
-      }
-    );
-  } catch(e) {
-    closeScanner();
-    showToast(e.name === 'NotAllowedError'
-      ? 'Camera permission denied — check Settings 📷'
-      : 'Camera unavailable — fill in manually 📝');
-  }
-};
-
-window.closeScanner = function() {
-  _scanActive = false;
-  if (_zxingReader) { try { _zxingReader.reset(); } catch {} _zxingReader = null; }
-  const video = document.getElementById('scannerVideo');
-  if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; }
-  document.getElementById('scannerModal').classList.add('hidden');
-};
-
-async function handleBarcodeResult(barcode) {
-  try {
-    const product = await lookupBarcode(barcode);
-    if (!product) { showToast('Product not found — fill in manually 📝'); return; }
-    applyFields(product);
-    document.getElementById('aiBadge').classList.add('on');
-    showToast('📦 Auto-filled from barcode!');
-  } catch { showToast('Lookup failed — fill in manually 📝'); }
-}
-
-function expandUPCE(code) {
-  // UPC-E (8 digits) → UPC-A (12 digits)
-  if (code.length !== 8) return null;
-  const ns = code[0], e = code.slice(1, 7), ck = code[7], d = parseInt(e[5]);
-  let mfr, prd;
-  if      (d <= 2)  { mfr = e[0]+e[1]+e[5]+'00';     prd = '00'+e[2]+e[3]+e[4]; }
-  else if (d === 3) { mfr = e[0]+e[1]+e[2]+'00';      prd = '000'+e[3]+e[4];     }
-  else if (d === 4) { mfr = e[0]+e[1]+e[2]+e[3]+'0';  prd = '0000'+e[4];         }
-  else              { mfr = e[0]+e[1]+e[2]+e[3]+e[4]; prd = '0000'+e[5];         }
-  return ns + mfr + prd + ck;
-}
-
-async function lookupBarcode(barcode) {
-  const codes = new Set([barcode]);
-  // Expand UPC-E (8-digit) → UPC-A (12-digit)
-  if (barcode.length === 8) { const x = expandUPCE(barcode); if (x) codes.add(x); }
-  // UPC-A (12-digit) → EAN-13 (prepend 0)
-  for (const c of [...codes]) if (c.length === 12) codes.add('0' + c);
-  // EAN-13 starting with 0 → UPC-A
-  for (const c of [...codes]) if (c.length === 13 && c.startsWith('0')) codes.add(c.slice(1));
-
-  for (const code of codes) {
-    const result = await lookupOFF(code);
-    if (result) return result;
-  }
-  // Fallback: UPCItemDB via CORS proxy (broad US retail coverage)
-  for (const code of codes) {
-    const result = await lookupUPCItemDB(code);
-    if (result) return result;
-  }
-  // Fallback: Datakick community UPC database
-  for (const code of codes) {
-    const result = await lookupDatakick(code);
-    if (result) return result;
-  }
-  return null;
-}
-
-async function lookupUPCItemDB(barcode) {
-  try {
-    const inner = `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`;
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(inner)}`;
-    const resp = await fetch(proxy);
-    if (!resp.ok) return null;
-    const outer = await resp.json();
-    if (!outer.contents || (outer.status && outer.status.http_code !== 200)) return null;
-    const data = JSON.parse(outer.contents);
-    if (data.code !== 'OK' || !data.total || !data.items || !data.items.length) return null;
-    return parseUPCItem(data.items[0]);
-  } catch { return null; }
-}
-
-function parseUPCItem(item) {
-  const brand = item.brand || '';
-  let flavor = item.title || '';
-  if (brand && flavor.toLowerCase().startsWith(brand.toLowerCase())) {
-    flavor = flavor.slice(brand.length).replace(/^[\s\-:,]+/, '').trim();
-  }
-  const photo = (item.images && item.images[0]) || null;
-  const txt = (item.title + ' ' + (item.description || '')).toLowerCase();
-
-  let type = '';
-  if      (txt.includes('pate') || txt.includes('pâté')) type = 'Pâté';
-  else if (txt.includes('gravy'))                         type = 'Gravy';
-  else if (txt.includes('shred'))                         type = 'Shreds';
-  else if (txt.includes('chunk'))                         type = 'Chunks';
-  else if (txt.includes('broth'))                         type = 'Broth';
-  else if (txt.includes('mousse'))                        type = 'Mousse';
-
-  let protein = '';
-  if      (txt.includes('chicken')) protein = 'Chicken';
-  else if (txt.includes('turkey'))  protein = 'Turkey';
-  else if (txt.includes('salmon'))  protein = 'Salmon';
-  else if (txt.includes('tuna'))    protein = 'Tuna';
-  else if (txt.includes('beef'))    protein = 'Beef';
-  else if (txt.includes('duck'))    protein = 'Duck';
-  else if (txt.includes('shrimp'))  protein = 'Shrimp';
-
-  return { brand, flavor, type, protein, notes: '', photo };
-}
-
-async function lookupDatakick(barcode) {
-  try {
-    // Datakick uses GTIN-14 (pad to 14 digits)
-    const gtin14 = barcode.padStart(14, '0');
-    const resp = await fetch(`https://www.datakick.org/api/items/${encodeURIComponent(gtin14)}`);
-    if (!resp.ok) return null;
-    const item = await resp.json();
-    if (!item || !item.name) return null;
-    const brand = item.brand_name || '';
-    let flavor = item.name || '';
-    if (brand && flavor.toLowerCase().startsWith(brand.toLowerCase())) {
-      flavor = flavor.slice(brand.length).replace(/^[\s\-:,]+/, '').trim();
-    }
-    const photo = (item.images && item.images[0] && item.images[0].url) || null;
-    const txt = (item.name + ' ' + (item.description || '')).toLowerCase();
-    let type = '';
-    if      (txt.includes('pate') || txt.includes('pâté')) type = 'Pâté';
-    else if (txt.includes('gravy'))                         type = 'Gravy';
-    else if (txt.includes('shred'))                         type = 'Shreds';
-    else if (txt.includes('chunk'))                         type = 'Chunks';
-    else if (txt.includes('broth'))                         type = 'Broth';
-    else if (txt.includes('mousse'))                        type = 'Mousse';
-    let protein = '';
-    if      (txt.includes('chicken')) protein = 'Chicken';
-    else if (txt.includes('turkey'))  protein = 'Turkey';
-    else if (txt.includes('salmon'))  protein = 'Salmon';
-    else if (txt.includes('tuna'))    protein = 'Tuna';
-    else if (txt.includes('beef'))    protein = 'Beef';
-    else if (txt.includes('duck'))    protein = 'Duck';
-    else if (txt.includes('shrimp'))  protein = 'Shrimp';
-    return { brand, flavor, type, protein, notes: '', photo };
-  } catch { return null; }
-}
-
-async function lookupOFF(barcode) {
-  for (const host of ['world.openpetfoodfacts.org', 'world.openfoodfacts.org']) {
-    try {
-      const resp = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(barcode)}.json`);
-      if (!resp.ok) continue;
-      const data = await resp.json();
-      if (data.status !== 1 || !data.product) continue;
-      return parseProduct(data.product);
-    } catch { continue; }
-  }
-  return null;
-}
-
-
-function parseProduct(p) {
-  const brand  = p.brands ? p.brands.split(',')[0].trim() : '';
-  const flavor = p.product_name_en || p.product_name || '';
-  const photo  = p.image_front_url || p.image_url || null;
-
-  const cats = (p.categories_tags || []).join(' ').toLowerCase();
-  let type = '';
-  if      (cats.includes('pate') || cats.includes('pâté')) type = 'Pâté';
-  else if (cats.includes('gravy'))                          type = 'Gravy';
-  else if (cats.includes('shred'))                         type = 'Shreds';
-  else if (cats.includes('chunk'))                         type = 'Chunks';
-  else if (cats.includes('broth'))                         type = 'Broth';
-  else if (cats.includes('mousse'))                        type = 'Mousse';
-
-  let protein = '';
-  const txt = (cats + ' ' + flavor).toLowerCase();
-  if      (txt.includes('chicken')) protein = 'Chicken';
-  else if (txt.includes('turkey'))  protein = 'Turkey';
-  else if (txt.includes('salmon'))  protein = 'Salmon';
-  else if (txt.includes('tuna'))    protein = 'Tuna';
-  else if (txt.includes('beef'))    protein = 'Beef';
-  else if (txt.includes('duck'))    protein = 'Duck';
-  else if (txt.includes('shrimp'))  protein = 'Shrimp';
-
-  return { brand, flavor, type, protein, notes: '', photo };
-}
-
-let pendingProductPhoto = null;
-
-window.handlePhoto = function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  currentFile = file;
-  const preview = document.getElementById('photoPreview');
-  preview.src = URL.createObjectURL(file);
-  preview.style.display = 'block';
-  ['phIcon','phText'].forEach(id => document.getElementById(id).style.display = 'none');
-};
-
-function applyFields(p) {
-  const textMap = { brand:'fBrand', flavor:'fFlavor', notes:'fNotes' };
-  for (const [key,id] of Object.entries(textMap)) {
-    if (!p[key]) continue;
-    const el = document.getElementById(id);
-    el.value = p[key];
-    el.classList.add('ai-filled');
-  }
-  for (const [id,key] of [['fType','type'],['fProtein','protein']]) {
-    if (!p[key]) continue;
-    const sel = document.getElementById(id);
-    for (const o of sel.options) {
-      if (o.text.toLowerCase() === p[key].toLowerCase()) { sel.value = o.value; break; }
-    }
-  }
-  if (p.photo) {
-    pendingProductPhoto = p.photo;
-    const preview = document.getElementById('photoPreview');
-    preview.src = p.photo;
-    preview.style.display = 'block';
-    ['phIcon', 'phText'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
-  }
-}
 
 // ═══════════════════════════════════════════════
 //  SAVE FOOD ENTRY
@@ -1318,15 +960,12 @@ window.saveFood = async function() {
   btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
-    // Upload photo (or use product image from barcode lookup)
     let photoURL = null;
     if (currentFile && window._stor) {
       const { sRef, uploadBytes, getDownloadURL } = window._fb;
       const ref  = sRef(window._stor, `foods/${Date.now()}_${currentFile.name}`);
       const snap = await uploadBytes(ref, currentFile);
       photoURL   = await getDownloadURL(snap.ref);
-    } else if (pendingProductPhoto) {
-      photoURL = pendingProductPhoto;
     }
 
     const { collection, addDoc, serverTimestamp } = window._fb;
@@ -1377,16 +1016,13 @@ function resetLogForm() {
   ['fBrand','fFlavor','fNotes'].forEach(id => {
     const el = document.getElementById(id);
     el.value = '';
-    el.classList.remove('ai-filled');
   });
   document.getElementById('fType').selectedIndex    = 0;
   document.getElementById('fProtein').selectedIndex = 0;
   document.getElementById('photoPreview').style.display = 'none';
   ['phIcon','phText'].forEach(id => document.getElementById(id).style.display = '');
-  document.getElementById('aiBadge').classList.remove('on');
   document.getElementById('photoInput').value = '';
   currentFile = null;
-  pendingProductPhoto = null;
   ratings.seb = 0; ratings.but = 0;
   tried.seb   = true; tried.but = true;
   ['seb','but'].forEach(c => {
@@ -1480,20 +1116,20 @@ window.buildOrder = function() {
 
   const days = Math.max(1, Math.round((new Date(to) - new Date(from)) / 86400000));
 
-  // Must be tried by BOTH cats and both meet minRating
-  const eligible = allFoods.filter(f =>
-    f.sebTried && f.butTried &&
-    f.sebRating >= minRating &&
-    f.butRating >= minRating
-  );
-
-  if (eligible.length === 0) {
-    showToast(`No foods where BOTH cats rated ≥${ratingLabel[minRating]}. Log more or lower the filter!`);
+  if (allFoods.length === 0) {
+    showToast('No foods logged yet — add some in the Log tab first 📝');
     return;
   }
 
-  // Score & initial floor allocation
-  const scored     = eligible.map(f => ({ ...f, score:(f.sebRating+f.butRating)/2 }));
+  // Include foods that meet the rating filter OR are not yet rated (rating = 0)
+  const eligible = allFoods.filter(f =>
+    (f.sebRating >= minRating && f.butRating >= minRating) ||
+    (f.sebRating === 0 && f.butRating === 0)
+  );
+  const list = eligible.length > 0 ? eligible : allFoods;
+
+  // Score & initial floor allocation (unrated foods default to neutral score of 2)
+  const scored     = list.map(f => ({ ...f, score:((f.sebRating||2)+(f.butRating||2))/2 }));
   const totalScore = scored.reduce((s,f) => s+f.score, 0);
   let   alloc      = scored.map(f => ({
     ...f,
