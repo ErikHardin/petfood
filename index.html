@@ -1015,63 +1015,64 @@ window.switchPage = function(name) {
 };
 
 // ═══════════════════════════════════════════════
-//  LIVE BARCODE SCANNER
+//  LIVE BARCODE SCANNER  (getUserMedia + BarcodeDetector — no library needed)
 // ═══════════════════════════════════════════════
-let _zxingReady   = false;
-let _scanControls = null;
-
-async function ensureZXing() {
-  if (_zxingReady) return;
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/@zxing/browser@0.1.4/umd/index.min.js';
-    s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
-  _zxingReady = true;
-}
+let _scanActive = false;
 
 window.openScanner = async function() {
-  document.getElementById('scannerModal').classList.remove('hidden');
-  try {
-    await ensureZXing();
-  } catch(e) {
-    closeScanner();
-    showToast('Scanner failed to load — fill in manually 📝');
+  if (!('BarcodeDetector' in window)) {
+    showToast('Update to iOS 17+ or use Chrome to scan barcodes 📷');
     return;
   }
-  const video    = document.getElementById('scannerVideo');
-  const callback = async (result) => {
-    if (!result) return;
-    closeScanner();
-    await handleBarcodeResult(result.getText());
-  };
-  // Try back camera first, fall back to any camera
-  const constraints = [
-    { video: { facingMode: { exact: 'environment' } } },
-    { video: { facingMode: 'environment' } },
-    { video: true }
-  ];
-  for (const c of constraints) {
-    try {
-      const reader = new ZXingBrowser.BrowserMultiFormatReader();
-      _scanControls = await reader.decodeFromConstraints(c, video, callback);
+
+  document.getElementById('scannerModal').classList.remove('hidden');
+  _scanActive = true;
+
+  const video = document.getElementById('scannerVideo');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch(e) {
+    if (e.name === 'NotAllowedError') {
+      closeScanner();
+      showToast('Camera permission denied — check Settings 📷');
       return;
-    } catch(e) {
-      if (e.name === 'NotAllowedError') {
-        closeScanner();
-        showToast('Camera permission denied — enable in Settings 📷');
-        return;
-      }
-      // OverconstrainedError or other — try next constraint
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    } catch {
+      closeScanner();
+      showToast('Camera unavailable — fill in manually 📝');
+      return;
     }
   }
-  closeScanner();
-  showToast('Camera unavailable — fill in manually 📝');
+
+  video.srcObject = stream;
+  try { await video.play(); } catch {}
+
+  const detector = new BarcodeDetector();
+  const tick = async () => {
+    if (!_scanActive) return;
+    try {
+      const results = await detector.detect(video);
+      if (results.length) {
+        closeScanner();
+        await handleBarcodeResult(results[0].rawValue);
+        return;
+      }
+    } catch {}
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 };
 
 window.closeScanner = function() {
-  if (_scanControls) { try { _scanControls.stop(); } catch {} _scanControls = null; }
+  _scanActive = false;
+  const video = document.getElementById('scannerVideo');
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
+  }
   document.getElementById('scannerModal').classList.add('hidden');
 };
 
