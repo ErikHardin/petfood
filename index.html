@@ -1115,14 +1115,16 @@ async function handleBarcodeResult(barcode) {
 }
 
 async function lookupBarcode(barcode) {
-  // openfoodfacts.org has CORS support and includes all pet food products
-  try {
-    const resp = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`);
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    if (data.status !== 1 || !data.product) return null;
-    return parseProduct(data.product);
-  } catch { return null; }
+  for (const host of ['world.openpetfoodfacts.org', 'world.openfoodfacts.org']) {
+    try {
+      const resp = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(barcode)}.json`);
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      if (data.status !== 1 || !data.product) continue;
+      return parseProduct(data.product);
+    } catch { continue; }
+  }
+  return null;
 }
 
 function parseProduct(p) {
