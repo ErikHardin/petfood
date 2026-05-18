@@ -11,12 +11,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="paw-icon.svg">
 
 <script type="module">
   import { initializeApp }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getFirestore, collection, doc,
-           addDoc, updateDoc, onSnapshot,
+           addDoc, updateDoc, setDoc, onSnapshot,
            query, orderBy, serverTimestamp, getDoc }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
   import { getStorage, ref as sRef,
@@ -39,7 +41,7 @@
 
   window._db   = db;
   window._stor = stor;
-  window._fb   = { collection, doc, addDoc, updateDoc, onSnapshot,
+  window._fb   = { collection, doc, addDoc, updateDoc, setDoc, onSnapshot,
                    query, orderBy, serverTimestamp, getDoc,
                    sRef, uploadBytes, getDownloadURL };
   window._fbReady = true;
@@ -91,8 +93,8 @@ header{
 .hdr-right{display:flex;align-items:center;gap:6px;}
 .hdr-dot{width:8px;height:8px;border-radius:50%;background:var(--warm-mid);transition:background .4s;}
 .hdr-dot.live{background:#4caf50;}
-#configBtn{background:none;border:none;font-size:19px;cursor:pointer;opacity:.45;transition:opacity .2s;}
-#configBtn:hover{opacity:1;}
+#lockBtn{background:none;border:none;font-size:19px;cursor:pointer;opacity:.45;transition:opacity .2s;}
+#lockBtn:hover{opacity:1;}
 
 /* ── NAV ── */
 nav{
@@ -372,9 +374,105 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
   z-index:300;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center;
 }
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── RATE LATER BADGE ── */
+.cat-badge.rate-later{background:var(--amber-lt);color:var(--amber);border:1px dashed var(--amber);}
+
+/* ── PIN LOCK SCREEN ── */
+#pinScreen{
+  position:fixed;inset:0;z-index:9999;
+  background:var(--cream);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:32px 24px;
+}
+#pinScreen.hidden{display:none;}
+.pin-title{
+  font-family:'Playfair Display',serif;font-size:28px;
+  color:var(--rust);margin-bottom:6px;text-align:center;
+}
+.pin-sub{font-size:13px;color:var(--ink-lt);margin-bottom:32px;text-align:center;}
+.pin-dots{display:flex;gap:14px;margin-bottom:32px;}
+.pin-dot{
+  width:14px;height:14px;border-radius:50%;
+  border:2px solid var(--tan);background:var(--cream);
+  transition:background .15s,border-color .15s;
+}
+.pin-dot.filled{background:var(--rust);border-color:var(--rust);}
+.pin-dot.error{background:#e53935;border-color:#e53935;}
+.pin-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:100%;max-width:280px;}
+.pin-key{
+  padding:18px 0;border-radius:14px;border:1.5px solid var(--warm-mid);
+  background:var(--snow);font-size:22px;font-weight:500;
+  font-family:'DM Sans',sans-serif;color:var(--ink);
+  cursor:pointer;transition:background .15s,transform .1s;
+}
+.pin-key:active{background:var(--parchment);transform:scale(.95);}
+.pin-key.del{font-size:18px;color:var(--ink-lt);}
+.pin-key.confirm{font-size:18px;}
+.pin-error{font-size:13px;color:#e53935;margin-top:12px;min-height:18px;text-align:center;}
+
+/* ── RATE MODAL ── */
+#rateModal{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(44,32,22,.45);display:flex;align-items:flex-end;
+  justify-content:center;
+}
+#rateModal.hidden{display:none;}
+.rate-sheet{
+  background:var(--cream);border-radius:var(--r-lg) var(--r-lg) 0 0;
+  padding:22px 18px 36px;width:100%;max-width:480px;
+  max-height:85dvh;overflow-y:auto;
+}
+.rate-sheet-title{
+  font-family:'Playfair Display',serif;font-size:18px;
+  color:var(--ink);margin-bottom:4px;
+}
+.rate-sheet-sub{font-size:12px;color:var(--ink-lt);margin-bottom:16px;}
+.rate-sheet-close{
+  float:right;background:none;border:none;font-size:22px;
+  color:var(--ink-lt);cursor:pointer;margin-top:-4px;
+}
 </style>
 </head>
 <body>
+
+<!-- PIN LOCK SCREEN -->
+<div id="pinScreen">
+  <div class="pin-title">🐾 Paw Approved</div>
+  <div class="pin-sub" id="pinSub">Enter your PIN</div>
+  <div class="pin-dots">
+    <div class="pin-dot" id="pd0"></div>
+    <div class="pin-dot" id="pd1"></div>
+    <div class="pin-dot" id="pd2"></div>
+    <div class="pin-dot" id="pd3"></div>
+  </div>
+  <div class="pin-keypad">
+    <button class="pin-key" onclick="pinKey('1')">1</button>
+    <button class="pin-key" onclick="pinKey('2')">2</button>
+    <button class="pin-key" onclick="pinKey('3')">3</button>
+    <button class="pin-key" onclick="pinKey('4')">4</button>
+    <button class="pin-key" onclick="pinKey('5')">5</button>
+    <button class="pin-key" onclick="pinKey('6')">6</button>
+    <button class="pin-key" onclick="pinKey('7')">7</button>
+    <button class="pin-key" onclick="pinKey('8')">8</button>
+    <button class="pin-key" onclick="pinKey('9')">9</button>
+    <button class="pin-key del" onclick="pinBack()">⌫</button>
+    <button class="pin-key" onclick="pinKey('0')">0</button>
+    <button class="pin-key confirm" onclick="pinSubmit()">↵</button>
+  </div>
+  <div class="pin-error" id="pinError"></div>
+</div>
+
+<!-- RATE MODAL -->
+<div id="rateModal" class="hidden" onclick="closeRateModal(event)">
+  <div class="rate-sheet">
+    <button class="rate-sheet-close" onclick="closeRateModalDirect()">✕</button>
+    <div class="rate-sheet-title" id="rateModalTitle">Update Ratings</div>
+    <div class="rate-sheet-sub" id="rateModalSub"></div>
+    <div id="rateModalBody"></div>
+    <button class="btn-p" style="margin-top:16px;width:100%;" onclick="saveRateModal()">🐾 Save Ratings</button>
+  </div>
+</div>
 
 <header>
   <div class="logo">
@@ -386,7 +484,7 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
   </div>
   <div class="hdr-right">
     <div class="hdr-dot" id="liveDot" title="Firebase connection"></div>
-    <button id="configBtn" onclick="alert('Config is baked in ✅\nProject: paw-approved')" title="Firebase config">⚙️</button>
+    <button id="lockBtn" onclick="lockApp()" title="Lock app">🔒</button>
   </div>
 </header>
 
@@ -400,18 +498,18 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
     <div class="card">
       <div class="card-label">
         📷 Food Photo
-        <span class="ai-badge" id="aiBadge">✨ AI Filled</span>
+        <span class="ai-badge" id="aiBadge">📦 Auto-filled</span>
       </div>
       <div class="photo-zone" id="photoZone">
         <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(event)" id="photoInput">
         <img id="photoPreview" alt="">
         <div class="scan-overlay" id="scanOverlay">
           <div class="spin"></div>
-          <span>Reading the label…</span>
+          <span>Scanning barcode…</span>
         </div>
         <div class="ph-icon" id="phIcon">🥫</div>
         <div class="ph-text" id="phText">Tap to take a photo<br>or choose from library</div>
-        <div class="ph-small" id="phSmall">AI will read the can label ✨</div>
+        <div class="ph-small" id="phSmall">Snap the barcode on the can</div>
       </div>
       <div class="food-meta">
         <div class="fg"><label>Brand</label><input type="text" id="fBrand" placeholder="e.g. Fancy Feast"></div>
@@ -436,7 +534,7 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
     </div>
 
     <div class="card">
-      <div class="card-label">🐱 How did they like it?</div>
+      <div class="card-label">🐱 How did they like it? <span style="font-weight:400;color:var(--ink-lt);font-size:9px;letter-spacing:1px;">(optional)</span></div>
       <div class="cats-section">
         <div class="cat-card seb">
           <div class="cat-header">
@@ -600,6 +698,212 @@ let minRating     = 3;
 let orderItems    = [];
 let currentFile   = null;
 
+// ═══════════════════════════════════════════════
+//  PIN LOCK
+// ═══════════════════════════════════════════════
+let pinBuffer     = '';
+let pinMode       = 'check';   // 'check' | 'setup-enter' | 'setup-confirm'
+let pinSetupFirst = '';
+let storedPin     = null;
+
+async function initPin() {
+  if (sessionStorage.getItem('unlocked') === 'true') { hidePinScreen(); return; }
+  await new Promise(res => whenFB(res));
+  try {
+    const { doc, getDoc } = window._fb;
+    const snap = await getDoc(doc(window._db, 'settings', 'app'));
+    storedPin = snap.exists() ? (snap.data().pin || null) : null;
+  } catch(e) { console.warn('PIN fetch failed', e); storedPin = null; }
+  if (storedPin) {
+    pinMode = 'check';
+    document.getElementById('pinSub').textContent = 'Enter your PIN';
+  } else {
+    pinMode = 'setup-enter';
+    document.getElementById('pinSub').textContent = 'Create a 4-digit PIN';
+  }
+}
+
+function hidePinScreen() {
+  document.getElementById('pinScreen').classList.add('hidden');
+}
+
+window.lockApp = function() {
+  sessionStorage.removeItem('unlocked');
+  pinBuffer = '';
+  pinMode = storedPin ? 'check' : 'setup-enter';
+  updatePinDots();
+  document.getElementById('pinError').textContent = '';
+  document.getElementById('pinSub').textContent = storedPin ? 'Enter your PIN' : 'Create a 4-digit PIN';
+  document.getElementById('pinScreen').classList.remove('hidden');
+};
+
+window.pinKey = function(digit) {
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += digit;
+  updatePinDots();
+  if (pinBuffer.length === 4) setTimeout(pinSubmit, 120);
+};
+
+window.pinBack = function() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  updatePinDots();
+};
+
+function updatePinDots() {
+  for (let i = 0; i < 4; i++) {
+    const d = document.getElementById('pd' + i);
+    d.classList.toggle('filled', i < pinBuffer.length);
+    d.classList.remove('error');
+  }
+}
+
+function pinShakeError(msg) {
+  document.getElementById('pinError').textContent = msg;
+  document.querySelectorAll('.pin-dot').forEach(d => d.classList.add('error'));
+  pinBuffer = '';
+  setTimeout(updatePinDots, 600);
+}
+
+window.pinSubmit = function() {
+  if (pinBuffer.length < 4) return;
+  const entered = pinBuffer;
+  pinBuffer = '';
+  updatePinDots();
+  if (pinMode === 'check') {
+    if (entered === storedPin) {
+      sessionStorage.setItem('unlocked', 'true');
+      hidePinScreen();
+    } else {
+      pinShakeError('Incorrect PIN — try again');
+    }
+  } else if (pinMode === 'setup-enter') {
+    pinSetupFirst = entered;
+    pinMode = 'setup-confirm';
+    document.getElementById('pinSub').textContent = 'Confirm your PIN';
+    document.getElementById('pinError').textContent = '';
+  } else if (pinMode === 'setup-confirm') {
+    if (entered !== pinSetupFirst) {
+      pinMode = 'setup-enter';
+      pinSetupFirst = '';
+      document.getElementById('pinSub').textContent = 'Create a 4-digit PIN';
+      pinShakeError("PINs didn't match — try again");
+      return;
+    }
+    (async () => {
+      const { doc, setDoc } = window._fb;
+      await setDoc(doc(window._db, 'settings', 'app'), { pin: entered }, { merge: true });
+      storedPin = entered;
+      sessionStorage.setItem('unlocked', 'true');
+      hidePinScreen();
+    })().catch(e => { console.error('PIN save failed', e); pinShakeError('Save failed — check connection'); });
+  }
+};
+
+initPin();
+
+// ═══════════════════════════════════════════════
+//  RATE MODAL
+// ═══════════════════════════════════════════════
+let rateModalFoodId = null;
+
+window.openRateModal = function(foodId) {
+  const food = allFoods.find(f => f.id === foodId);
+  if (!food) return;
+  rateModalFoodId = foodId;
+
+  document.getElementById('rateModalTitle').textContent = food.flavor || food.brand;
+  document.getElementById('rateModalSub').textContent   = food.brand + (food.type ? ' · ' + food.type : '');
+
+  const modalTried   = { seb: food.sebTried ?? true, but: food.butTried ?? true };
+  const modalRatings = { seb: food.sebRating || 0,   but: food.butRating || 0  };
+
+  function pawBtns(cat) {
+    return [1,2,3,4].map(v => {
+      const sel = modalRatings[cat] === v ? ' sel' : '';
+      return `<button class="paw-btn ${cat}${sel}" onclick="modalRate('${cat}',${v},this)"><span class="pe">${ratingEmoji[v]}</span>${ratingLabel[v]}</button>`;
+    }).join('');
+  }
+
+  document.getElementById('rateModalBody').innerHTML = `
+    <div class="cats-section">
+      <div class="cat-card seb" style="margin-bottom:12px;">
+        <div class="cat-header">
+          <div class="cat-avatar seb">🤍</div>
+          <div><div class="cat-name seb">Sebastian</div></div>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Did he try it?</span>
+          <button class="tog ${modalTried.seb ? 'on seb' : 'off'}" id="rm-sebToggle" onclick="modalToggle('seb')"></button>
+        </div>
+        <div id="rm-sebRating" style="opacity:${modalTried.seb?1:.38};pointer-events:${modalTried.seb?'auto':'none'}">
+          <div class="rating-lbl">How much did he like it?</div>
+          <div class="paw-rating">${pawBtns('seb')}</div>
+        </div>
+      </div>
+      <div class="cat-card but">
+        <div class="cat-header">
+          <div class="cat-avatar but">🧡</div>
+          <div><div class="cat-name but">Butters</div></div>
+        </div>
+        <div class="toggle-row">
+          <span class="toggle-label">Did she try it?</span>
+          <button class="tog ${modalTried.but ? 'on but' : 'off'}" id="rm-butToggle" onclick="modalToggle('but')"></button>
+        </div>
+        <div id="rm-butRating" style="opacity:${modalTried.but?1:.38};pointer-events:${modalTried.but?'auto':'none'}">
+          <div class="rating-lbl">How much did she like it?</div>
+          <div class="paw-rating">${pawBtns('but')}</div>
+        </div>
+      </div>
+    </div>`;
+
+  window._modalTried   = modalTried;
+  window._modalRatings = modalRatings;
+  document.getElementById('rateModal').classList.remove('hidden');
+};
+
+window.modalToggle = function(cat) {
+  window._modalTried[cat] = !window._modalTried[cat];
+  document.getElementById('rm-'+cat+'Toggle').className = 'tog ' + (window._modalTried[cat] ? 'on '+cat : 'off');
+  const r = document.getElementById('rm-'+cat+'Rating');
+  r.style.opacity       = window._modalTried[cat] ? '1' : '0.38';
+  r.style.pointerEvents = window._modalTried[cat] ? 'auto' : 'none';
+};
+
+window.modalRate = function(cat, val, btn) {
+  window._modalRatings[cat] = val;
+  document.querySelectorAll('#rm-'+cat+'Rating .paw-btn').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+};
+
+window.closeRateModal = function(e) {
+  if (e.target === document.getElementById('rateModal')) closeRateModalDirect();
+};
+
+window.closeRateModalDirect = function() {
+  document.getElementById('rateModal').classList.add('hidden');
+  rateModalFoodId = null;
+};
+
+window.saveRateModal = async function() {
+  if (!rateModalFoodId) return;
+  const { doc, updateDoc } = window._fb;
+  const t = window._modalTried;
+  const r = window._modalRatings;
+  try {
+    await updateDoc(doc(window._db, 'foods', rateModalFoodId), {
+      sebTried:  t.seb,
+      butTried:  t.but,
+      sebRating: t.seb ? r.seb : 0,
+      butRating: t.but ? r.but : 0,
+    });
+    showToast('Ratings updated 🐾');
+    closeRateModalDirect();
+  } catch(e) {
+    console.error('Rating save failed', e);
+    showToast('Save failed — check connection');
+  }
+};
+
 // ── Wait for Firebase ──────────────────────────
 function whenFB(fn) {
   if (window._fbReady) { fn(); return; }
@@ -650,14 +954,83 @@ window.switchPage = function(name) {
 };
 
 // ═══════════════════════════════════════════════
-//  AI LABEL SCANNER
+//  BARCODE SCANNER
 // ═══════════════════════════════════════════════
+let _zxingReady = false;
+async function ensureZXing() {
+  if ('BarcodeDetector' in window) return;
+  if (_zxingReady) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/@zxing/browser@0.1.4/umd/index.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  _zxingReady = true;
+}
+
+async function detectBarcode(file) {
+  const bmp = await createImageBitmap(file);
+  if ('BarcodeDetector' in window) {
+    const bd = new BarcodeDetector();
+    const results = await bd.detect(bmp);
+    if (results.length) return results[0].rawValue;
+    return null;
+  }
+  await ensureZXing();
+  const canvas = document.createElement('canvas');
+  canvas.width  = bmp.width;
+  canvas.height = bmp.height;
+  canvas.getContext('2d').drawImage(bmp, 0, 0);
+  try {
+    const reader = new ZXingBrowser.BrowserMultiFormatReader();
+    const result = await reader.decodeFromCanvas(canvas);
+    return result ? result.getText() : null;
+  } catch { return null; }
+}
+
+async function lookupBarcode(barcode) {
+  const url  = `https://world.openpetfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
+  const resp = await fetch(url);
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  if (data.status !== 1 || !data.product) return null;
+  const p = data.product;
+
+  const brand  = p.brands ? p.brands.split(',')[0].trim() : '';
+  const flavor = p.product_name_en || p.product_name || '';
+  const photo  = p.image_front_url || p.image_url || null;
+
+  const cats = (p.categories_tags || []).join(' ').toLowerCase();
+  let type = '';
+  if      (cats.includes('pate') || cats.includes('pâté')) type = 'Pâté';
+  else if (cats.includes('gravy'))                          type = 'Gravy';
+  else if (cats.includes('shred'))                         type = 'Shreds';
+  else if (cats.includes('chunk'))                         type = 'Chunks';
+  else if (cats.includes('broth'))                         type = 'Broth';
+  else if (cats.includes('mousse'))                        type = 'Mousse';
+
+  let protein = '';
+  const txt = (cats + ' ' + flavor).toLowerCase();
+  if      (txt.includes('chicken')) protein = 'Chicken';
+  else if (txt.includes('turkey'))  protein = 'Turkey';
+  else if (txt.includes('salmon'))  protein = 'Salmon';
+  else if (txt.includes('tuna'))    protein = 'Tuna';
+  else if (txt.includes('beef'))    protein = 'Beef';
+  else if (txt.includes('duck'))    protein = 'Duck';
+  else if (txt.includes('shrimp'))  protein = 'Shrimp';
+
+  return { brand, flavor, type, protein, notes: '', photo };
+}
+
+let pendingProductPhoto = null;
+
 window.handlePhoto = async function(e) {
   const file = e.target.files[0];
   if (!file) return;
   currentFile = file;
+  pendingProductPhoto = null;
 
-  // Show preview right away
   const preview = document.getElementById('photoPreview');
   preview.src = URL.createObjectURL(file);
   preview.style.display = 'block';
@@ -666,48 +1039,24 @@ window.handlePhoto = async function(e) {
   document.getElementById('scanOverlay').classList.add('on');
 
   try {
-    const b64 = await toBase64(file);
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:400,
-        messages:[{
-          role:'user',
-          content:[
-            { type:'image', source:{ type:'base64', media_type:file.type||'image/jpeg', data:b64 } },
-            { type:'text',  text:`Read this cat food can label and return ONLY valid JSON, no markdown:
-{"brand":"","flavor":"","type":"Pâté|Gravy|Shreds|Chunks|Broth|Mousse|Other","protein":"Chicken|Turkey|Salmon|Tuna|Beef|Duck|Shrimp|Mixed","notes":""}
-Empty string for anything unclear.` }
-          ]
-        }]
-      })
-    });
-    const data = await resp.json();
-    const raw  = (data.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim();
-    const p    = JSON.parse(raw);
-    applyAI(p);
+    const barcode = await detectBarcode(file);
+    if (!barcode) { showToast('Barcode not found — fill in manually 📝'); return; }
+
+    const product = await lookupBarcode(barcode);
+    if (!product)  { showToast('Product not in database — fill in manually 📝'); return; }
+
+    applyFields(product);
     document.getElementById('aiBadge').classList.add('on');
-    showToast('✨ Label read — check the fields!');
+    showToast('📦 Auto-filled from barcode!');
   } catch(err) {
-    console.warn('AI scan failed:', err);
-    showToast('Couldn\'t read label — fill in manually 📝');
+    console.warn('Barcode scan failed:', err);
+    showToast('Scan failed — fill in manually 📝');
   } finally {
     document.getElementById('scanOverlay').classList.remove('on');
   }
 };
 
-function toBase64(file) {
-  return new Promise((res,rej) => {
-    const r = new FileReader();
-    r.onload  = () => res(r.result.split(',')[1]);
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
-}
-
-function applyAI(p) {
+function applyFields(p) {
   const textMap = { brand:'fBrand', flavor:'fFlavor', notes:'fNotes' };
   for (const [key,id] of Object.entries(textMap)) {
     if (!p[key]) continue;
@@ -722,6 +1071,7 @@ function applyAI(p) {
       if (o.text.toLowerCase() === p[key].toLowerCase()) { sel.value = o.value; break; }
     }
   }
+  if (p.photo) pendingProductPhoto = p.photo;
 }
 
 // ═══════════════════════════════════════════════
@@ -737,13 +1087,15 @@ window.saveFood = async function() {
   btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
-    // Upload photo
+    // Upload photo (or use product image from barcode lookup)
     let photoURL = null;
     if (currentFile && window._stor) {
       const { sRef, uploadBytes, getDownloadURL } = window._fb;
       const ref  = sRef(window._stor, `foods/${Date.now()}_${currentFile.name}`);
       const snap = await uploadBytes(ref, currentFile);
       photoURL   = await getDownloadURL(snap.ref);
+    } else if (pendingProductPhoto) {
+      photoURL = pendingProductPhoto;
     }
 
     const { collection, addDoc, serverTimestamp } = window._fb;
@@ -803,6 +1155,7 @@ function resetLogForm() {
   document.getElementById('aiBadge').classList.remove('on');
   document.getElementById('photoInput').value = '';
   currentFile = null;
+  pendingProductPhoto = null;
   ratings.seb = 0; ratings.but = 0;
   tried.seb   = true; tried.but = true;
   ['seb','but'].forEach(c => {
@@ -841,12 +1194,16 @@ function renderJournal() {
       ? `<div class="food-thumb"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
       : `<div class="food-thumb">${icon}</div>`;
     const sebBadge = f.sebTried
-      ? `<span class="cat-badge seb">🤍 ${ratingEmoji[f.sebRating]||'—'} ${ratingLabel[f.sebRating]||'Not rated'}</span>`
+      ? (f.sebRating > 0
+          ? `<span class="cat-badge seb">🤍 ${ratingEmoji[f.sebRating]} ${ratingLabel[f.sebRating]}</span>`
+          : `<span class="cat-badge rate-later">🤍 Rate later</span>`)
       : `<span class="cat-badge no">🤍 Not tried</span>`;
     const butBadge = f.butTried
-      ? `<span class="cat-badge but">🧡 ${ratingEmoji[f.butRating]||'—'} ${ratingLabel[f.butRating]||'Not rated'}</span>`
+      ? (f.butRating > 0
+          ? `<span class="cat-badge but">🧡 ${ratingEmoji[f.butRating]} ${ratingLabel[f.butRating]}</span>`
+          : `<span class="cat-badge rate-later">🧡 Rate later</span>`)
       : `<span class="cat-badge no">🧡 Not tried</span>`;
-    return `<div class="food-item">
+    return `<div class="food-item" onclick="openRateModal('${esc(f.id)}')">
       ${thumb}
       <div class="food-info">
         <div class="food-name">${esc(f.flavor)}</div>
