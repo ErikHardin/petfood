@@ -1104,10 +1104,9 @@ window.closeScanner = function() {
 };
 
 async function handleBarcodeResult(barcode) {
-  showToast('Scanned: ' + barcode);
   try {
     const product = await lookupBarcode(barcode);
-    if (!product) { showToast('Not found (' + barcode + ') — fill in manually 📝'); return; }
+    if (!product) { showToast('Product not found — fill in manually 📝'); return; }
     applyFields(product);
     document.getElementById('aiBadge').classList.add('on');
     showToast('📦 Auto-filled from barcode!');
@@ -1139,7 +1138,55 @@ async function lookupBarcode(barcode) {
     const result = await lookupOFF(code);
     if (result) return result;
   }
+  // Fallback: UPCItemDB via CORS proxy (broad US retail coverage)
+  for (const code of codes) {
+    const result = await lookupUPCItemDB(code);
+    if (result) return result;
+  }
   return null;
+}
+
+async function lookupUPCItemDB(barcode) {
+  try {
+    const inner = `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`;
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(inner)}`;
+    const resp = await fetch(proxy);
+    if (!resp.ok) return null;
+    const outer = await resp.json();
+    if (!outer.contents || (outer.status && outer.status.http_code !== 200)) return null;
+    const data = JSON.parse(outer.contents);
+    if (data.code !== 'OK' || !data.total || !data.items || !data.items.length) return null;
+    return parseUPCItem(data.items[0]);
+  } catch { return null; }
+}
+
+function parseUPCItem(item) {
+  const brand = item.brand || '';
+  let flavor = item.title || '';
+  if (brand && flavor.toLowerCase().startsWith(brand.toLowerCase())) {
+    flavor = flavor.slice(brand.length).replace(/^[\s\-:,]+/, '').trim();
+  }
+  const photo = (item.images && item.images[0]) || null;
+  const txt = (item.title + ' ' + (item.description || '')).toLowerCase();
+
+  let type = '';
+  if      (txt.includes('pate') || txt.includes('pâté')) type = 'Pâté';
+  else if (txt.includes('gravy'))                         type = 'Gravy';
+  else if (txt.includes('shred'))                         type = 'Shreds';
+  else if (txt.includes('chunk'))                         type = 'Chunks';
+  else if (txt.includes('broth'))                         type = 'Broth';
+  else if (txt.includes('mousse'))                        type = 'Mousse';
+
+  let protein = '';
+  if      (txt.includes('chicken')) protein = 'Chicken';
+  else if (txt.includes('turkey'))  protein = 'Turkey';
+  else if (txt.includes('salmon'))  protein = 'Salmon';
+  else if (txt.includes('tuna'))    protein = 'Tuna';
+  else if (txt.includes('beef'))    protein = 'Beef';
+  else if (txt.includes('duck'))    protein = 'Duck';
+  else if (txt.includes('shrimp'))  protein = 'Shrimp';
+
+  return { brand, flavor, type, protein, notes: '', photo };
 }
 
 async function lookupOFF(barcode) {
