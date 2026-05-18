@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#FDF6EC">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Paw Approved">
+<title>Paw Approved 🐾</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<script type="module">
+  import { initializeApp }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getFirestore, collection, doc,
+           addDoc, updateDoc, onSnapshot,
+           query, orderBy, serverTimestamp, getDoc }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  import { getStorage, ref as sRef,
+           uploadBytes, getDownloadURL }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js';
+
+  const firebaseConfig = {
+    apiKey:            "AIzaSyCTNAN5Gf_wpRL7ZlP7UnDZGuvXPRxWZyw",
+    authDomain:        "paw-approved.firebaseapp.com",
+    projectId:         "paw-approved",
+    storageBucket:     "paw-approved.firebasestorage.app",
+    messagingSenderId: "307597951370",
+    appId:             "1:307597951370:web:5ce1f038d92d0ee82f4873",
+    measurementId:     "G-1ERZ1V7MWZ"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const db   = getFirestore(app);
+  const stor = getStorage(app);
+
+  window._db   = db;
+  window._stor = stor;
+  window._fb   = { collection, doc, addDoc, updateDoc, onSnapshot,
+                   query, orderBy, serverTimestamp, getDoc,
+                   sRef, uploadBytes, getDownloadURL };
+  window._fbReady = true;
+  document.dispatchEvent(new Event('fb-ready'));
+</script>
+
+<style>
+:root {
+  --cream:#FDF6EC; --parchment:#F5ECD6; --warm-mid:#E8D5B0; --tan:#C9A87C;
+  --rust:#C4622D;  --rust-lt:#E8845A;
+  --snow:#FFFFFF;  --ink:#2C2016; --ink-mid:#5C4A35; --ink-lt:#9C8470;
+  --seb:#5B7FA6;   --but:#E8845A;
+  --green:#3D8B5E; --green-lt:#EDF7F2; --green-bd:#9DCFB4;
+  --amber:#B8860B; --amber-lt:#FEF3E2;
+  --r:12px; --r-lg:20px;
+  --shadow:0 2px 14px rgba(44,32,22,.07);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;}
+body{
+  font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);
+  display:flex;flex-direction:column;max-width:480px;margin:0 auto;
+  min-height:100dvh;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    radial-gradient(circle 6px at 12% 6%,var(--warm-mid) 100%,transparent 0),
+    radial-gradient(circle 4px at  8% 3%,var(--warm-mid) 100%,transparent 0),
+    radial-gradient(circle 4px at 16% 3%,var(--warm-mid) 100%,transparent 0),
+    radial-gradient(circle 4px at 12% .5%,var(--warm-mid) 100%,transparent 0),
+    radial-gradient(circle 6px at 82% 92%,var(--warm-mid) 100%,transparent 0),
+    radial-gradient(circle 4px at 78% 89%,var(--warm-mid) 100%,transparent 0),
+    radial-gradient(circle 4px at 86% 89%,var(--warm-mid) 100%,transparent 0),
+    radial-gradient(circle 4px at 82% 86%,var(--warm-mid) 100%,transparent 0);
+  opacity:.45;
+}
+
+/* ── HEADER ── */
+header{
+  position:sticky;top:0;z-index:100;
+  background:var(--cream);border-bottom:1.5px solid var(--warm-mid);
+  padding:12px 18px 10px;display:flex;align-items:center;justify-content:space-between;
+}
+.logo{display:flex;align-items:center;gap:8px;}
+.logo-paw{font-size:22px;}
+.logo-text{font-family:'Playfair Display',serif;font-size:19px;color:var(--rust);letter-spacing:-.4px;}
+.logo-sub{font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-lt);margin-top:1px;}
+.hdr-right{display:flex;align-items:center;gap:6px;}
+.hdr-dot{width:8px;height:8px;border-radius:50%;background:var(--warm-mid);transition:background .4s;}
+.hdr-dot.live{background:#4caf50;}
+#configBtn{background:none;border:none;font-size:19px;cursor:pointer;opacity:.45;transition:opacity .2s;}
+#configBtn:hover{opacity:1;}
+
+/* ── NAV ── */
+nav{
+  background:var(--cream);border-top:1.5px solid var(--warm-mid);
+  position:sticky;bottom:0;z-index:100;
+  display:grid;grid-template-columns:repeat(4,1fr);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav button{
+  background:none;border:none;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;
+  gap:3px;padding:10px 4px 8px;
+  color:var(--ink-lt);font-size:9px;letter-spacing:.5px;text-transform:uppercase;
+  font-family:'DM Sans',sans-serif;transition:color .2s;position:relative;
+}
+nav button.active{color:var(--rust);}
+.nav-icon{font-size:18px;line-height:1;}
+.nav-badge{
+  position:absolute;top:6px;right:14px;
+  background:var(--rust);color:white;border-radius:20px;
+  font-size:9px;font-weight:700;padding:1px 5px;min-width:16px;text-align:center;
+  display:none;
+}
+.nav-badge.show{display:block;}
+
+/* ── MAIN ── */
+main{flex:1;overflow-y:auto;padding:18px 15px 10px;position:relative;z-index:1;}
+main::-webkit-scrollbar{width:0;}
+
+/* ── TYPOGRAPHY ── */
+.section-title{font-family:'Playfair Display',serif;font-size:21px;color:var(--rust);margin-bottom:3px;}
+.section-sub{font-size:12px;color:var(--ink-lt);letter-spacing:.4px;margin-bottom:16px;}
+
+/* ── CARDS ── */
+.card{background:var(--snow);border-radius:var(--r-lg);padding:16px;margin-bottom:13px;border:1.5px solid var(--warm-mid);box-shadow:var(--shadow);}
+.card-label{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-lt);font-weight:500;margin-bottom:9px;display:flex;align-items:center;}
+
+/* ── PHOTO ZONE ── */
+.photo-zone{
+  background:var(--parchment);border:2px dashed var(--tan);
+  border-radius:var(--r);min-height:170px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;cursor:pointer;transition:border-color .2s;
+  position:relative;overflow:hidden;
+}
+.photo-zone:hover{border-color:var(--rust);}
+.ph-icon{font-size:38px;opacity:.45;}
+.ph-text{font-size:13px;color:var(--ink-mid);text-align:center;line-height:1.4;}
+.ph-small{font-size:11px;color:var(--ink-lt);}
+.photo-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;}
+#photoPreview{width:100%;height:170px;object-fit:cover;border-radius:var(--r);display:none;}
+.scan-overlay{
+  position:absolute;inset:0;background:rgba(44,32,22,.75);border-radius:var(--r);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;color:white;font-size:13px;
+}
+.scan-overlay.on{display:flex;}
+.spin{width:30px;height:30px;border:3px solid rgba(255,255,255,.25);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.ai-badge{display:inline-flex;align-items:center;gap:4px;background:var(--green-lt);color:var(--green);border:1px solid var(--green-bd);border-radius:20px;font-size:10px;font-weight:500;padding:2px 8px;margin-left:8px;opacity:0;transition:opacity .4s;}
+.ai-badge.on{opacity:1;}
+
+/* ── FIELDS ── */
+.food-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:11px;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg label{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink-lt);font-weight:500;}
+.fg input,.fg select,.fg textarea{
+  background:var(--parchment);border:1.5px solid var(--warm-mid);
+  border-radius:8px;padding:9px 11px;
+  font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink);
+  outline:none;transition:border-color .2s,background .3s;width:100%;
+}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--rust);}
+.fg.full{grid-column:1/-1;}
+.fg textarea{resize:none;min-height:58px;}
+.ai-filled{background:var(--green-lt)!important;border-color:var(--green-bd)!important;}
+
+/* ── CAT CARDS ── */
+.cats-section{display:flex;flex-direction:column;gap:11px;margin-top:4px;}
+.cat-card{border-radius:var(--r);padding:13px 15px;border:2px solid transparent;}
+.cat-card.seb{background:linear-gradient(135deg,#EEF3F9,#F5F8FC);border-color:#C5D8ED;}
+.cat-card.but{background:linear-gradient(135deg,#FDF0E8,#FEF5EE);border-color:#F5C9A8;}
+.cat-header{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+.cat-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;border:2px solid rgba(255,255,255,.8);box-shadow:0 2px 8px rgba(0,0,0,.1);}
+.cat-avatar.seb{background:radial-gradient(circle,#f8f6f4 60%,#e8e0d8);}
+.cat-avatar.but{background:radial-gradient(circle,#f4a256 60%,#c87432);}
+.cat-name{font-family:'Playfair Display',serif;font-size:15px;line-height:1;}
+.cat-name.seb{color:var(--seb);}
+.cat-name.but{color:var(--rust);}
+.cat-desc{font-size:11px;color:var(--ink-lt);margin-top:2px;}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.toggle-label{font-size:13px;color:var(--ink-mid);font-weight:500;}
+.tog{width:44px;height:25px;border-radius:13px;background:var(--warm-mid);border:none;cursor:pointer;position:relative;transition:background .3s;flex-shrink:0;}
+.tog.on.seb{background:var(--seb);}
+.tog.on.but{background:var(--rust);}
+.tog::after{content:'';position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:white;transition:transform .3s;box-shadow:0 1px 4px rgba(0,0,0,.2);}
+.tog.on::after{transform:translateX(19px);}
+.rating-lbl{font-size:11px;color:var(--ink-lt);margin-bottom:6px;}
+.paw-rating{display:flex;gap:7px;}
+.paw-btn{
+  flex:1;padding:8px 3px;border-radius:8px;border:1.5px solid var(--warm-mid);
+  background:var(--cream);cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;gap:3px;font-size:9px;color:var(--ink-lt);
+  letter-spacing:.4px;text-transform:uppercase;transition:all .18s;font-family:'DM Sans',sans-serif;
+}
+.pe{font-size:17px;}
+.paw-btn:hover{border-color:var(--tan);background:var(--parchment);}
+.paw-btn.sel.seb{border-color:var(--seb);background:#EEF3F9;color:var(--seb);font-weight:500;}
+.paw-btn.sel.but{border-color:var(--rust);background:#FDF0E8;color:var(--rust);font-weight:500;}
+
+/* ── BUTTONS ── */
+.btn-p{
+  width:100%;padding:14px;background:var(--rust);color:white;
+  border:none;border-radius:var(--r);font-family:'DM Sans',sans-serif;
+  font-size:15px;font-weight:500;cursor:pointer;
+  transition:background .2s,transform .1s;
+  display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px;
+}
+.btn-p:hover{background:var(--rust-lt);}
+.btn-p:active{transform:scale(.98);}
+.btn-p.green{background:var(--green);}
+.btn-p.green:hover{background:#4aac73;}
+button:disabled{opacity:.5;cursor:not-allowed!important;}
+.btn-s{
+  width:100%;padding:12px;background:transparent;color:var(--rust);
+  border:1.5px solid var(--rust);border-radius:var(--r);
+  font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;
+  cursor:pointer;transition:all .2s;margin-top:8px;
+}
+.btn-s:hover{background:var(--parchment);}
+
+/* ── FILTER CHIPS ── */
+.filter-row{display:flex;gap:7px;margin-bottom:13px;flex-wrap:wrap;}
+.chip{
+  padding:5px 13px;border-radius:20px;border:1.5px solid var(--warm-mid);
+  background:var(--snow);font-size:12px;font-weight:500;color:var(--ink-lt);
+  cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif;
+}
+.chip.on{border-color:var(--rust);color:var(--rust);background:#FEF0E8;}
+.chip:hover{border-color:var(--tan);}
+
+/* ── STREAK ── */
+.streak-row{display:flex;gap:9px;margin-bottom:15px;}
+.streak-card{flex:1;border-radius:var(--r);padding:11px 13px;text-align:center;}
+.streak-card.seb{background:#EEF3F9;border:1.5px solid #C5D8ED;}
+.streak-card.but{background:#FDF0E8;border:1.5px solid #F5C9A8;}
+.streak-num{font-family:'Playfair Display',serif;font-size:26px;}
+.streak-num.seb{color:var(--seb);}
+.streak-num.but{color:var(--rust);}
+.streak-lbl{font-size:10px;color:var(--ink-lt);letter-spacing:1px;text-transform:uppercase;margin-top:1px;}
+
+/* ── JOURNAL ITEMS ── */
+.food-item{
+  display:flex;gap:11px;align-items:flex-start;padding:13px 14px;
+  background:var(--snow);border-radius:var(--r);border:1.5px solid var(--warm-mid);
+  margin-bottom:9px;cursor:pointer;transition:border-color .2s,box-shadow .2s;
+}
+.food-item:hover{border-color:var(--tan);box-shadow:0 4px 16px rgba(44,32,22,.08);}
+.food-thumb{width:54px;height:54px;border-radius:10px;flex-shrink:0;background:var(--parchment);display:flex;align-items:center;justify-content:center;font-size:26px;overflow:hidden;}
+.food-thumb img{width:100%;height:100%;object-fit:cover;}
+.food-info{flex:1;min-width:0;}
+.food-name{font-family:'Playfair Display',serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.food-brand{font-size:11px;color:var(--ink-lt);margin-bottom:5px;}
+.food-cats{display:flex;gap:5px;flex-wrap:wrap;}
+.cat-badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;}
+.cat-badge.seb{background:#EEF3F9;color:var(--seb);}
+.cat-badge.but{background:#FDF0E8;color:var(--rust);}
+.cat-badge.no{background:var(--parchment);color:var(--ink-lt);}
+
+/* ── ORDER SUMMARY BANNER ── */
+.order-summary{
+  background:linear-gradient(135deg,var(--rust),var(--rust-lt));
+  border-radius:var(--r-lg);padding:18px;color:white;
+  margin-bottom:13px;position:relative;overflow:hidden;
+}
+.order-summary::before{content:'📋';font-size:74px;opacity:.1;position:absolute;right:-8px;bottom:-16px;line-height:1;}
+.os-title{font-family:'Playfair Display',serif;font-size:17px;margin-bottom:3px;}
+.os-sub{font-size:11px;opacity:.8;margin-bottom:13px;}
+.os-stats{display:flex;gap:14px;}
+.os-stat{text-align:center;}
+.os-num{font-size:26px;font-weight:700;line-height:1;}
+.os-lbl{font-size:9px;opacity:.8;letter-spacing:1px;text-transform:uppercase;margin-top:1px;}
+.os-div{width:1px;background:rgba(255,255,255,.3);}
+
+/* ── ORDER PREVIEW ITEMS ── */
+.opi{
+  display:flex;align-items:center;gap:11px;
+  background:var(--snow);border-radius:var(--r);padding:11px 13px;
+  border:1.5px solid var(--warm-mid);margin-bottom:7px;
+}
+.opi-icon{font-size:20px;flex-shrink:0;}
+.opi-info{flex:1;min-width:0;}
+.opi-name{font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.opi-brand{font-size:11px;color:var(--ink-lt);}
+.opi-stars{font-size:10px;color:var(--tan);margin-top:1px;}
+.opi-qty{background:var(--rust);color:white;border-radius:8px;padding:4px 9px;font-size:13px;font-weight:700;white-space:nowrap;}
+
+/* ── SAVED ORDER CARDS ── */
+.soc{
+  background:var(--snow);border-radius:var(--r-lg);padding:15px 16px;
+  border:1.5px solid var(--warm-mid);margin-bottom:11px;
+}
+.soc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.soc-name{font-family:'Playfair Display',serif;font-size:15px;color:var(--ink);}
+.soc-status{font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:500;padding:3px 9px;border-radius:20px;}
+.soc-status.active{background:var(--amber-lt);color:var(--amber);}
+.soc-status.shopping{background:#EEF3F9;color:var(--seb);}
+.soc-status.complete{background:var(--parchment);color:var(--ink-lt);}
+.soc-meta{font-size:11px;color:var(--ink-lt);margin-bottom:8px;}
+.soc-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.soc-chip{font-size:10px;padding:2px 8px;border-radius:20px;background:var(--parchment);color:var(--ink-mid);border:1px solid var(--warm-mid);}
+
+/* ── SHOPPING TAB ── */
+.active-banner{
+  background:linear-gradient(135deg,var(--green),#4aac73);
+  border-radius:var(--r-lg);padding:17px;color:white;margin-bottom:13px;
+  position:relative;overflow:hidden;
+}
+.active-banner::before{content:'🛒';font-size:65px;opacity:.12;position:absolute;right:-6px;bottom:-14px;line-height:1;}
+.ab-lbl{font-size:9px;letter-spacing:2px;text-transform:uppercase;opacity:.8;margin-bottom:3px;}
+.ab-title{font-family:'Playfair Display',serif;font-size:19px;margin-bottom:2px;}
+.ab-meta{font-size:11px;opacity:.8;}
+.ab-prog{margin-top:10px;background:rgba(255,255,255,.25);border-radius:20px;height:5px;overflow:hidden;}
+.ab-fill{height:100%;background:white;border-radius:20px;transition:width .4s;}
+.ab-count{font-size:11px;opacity:.8;margin-top:5px;}
+
+/* brand group */
+.brand-group{margin-bottom:14px;}
+.brand-group-label{
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--ink-lt);font-weight:500;padding:0 2px;margin-bottom:7px;
+  display:flex;align-items:center;gap:8px;
+}
+.brand-group-label::after{content:'';flex:1;height:1px;background:var(--warm-mid);}
+
+.shop-item{
+  display:flex;align-items:center;gap:12px;
+  background:var(--snow);border-radius:var(--r);padding:13px 14px;
+  border:1.5px solid var(--warm-mid);margin-bottom:7px;
+  transition:all .25s;cursor:pointer;user-select:none;
+}
+.shop-item.done{background:var(--green-lt);border-color:var(--green-bd);}
+.shop-item.done .si-name{text-decoration:line-through;color:var(--ink-lt);}
+.si-check{
+  width:25px;height:25px;border-radius:7px;border:2px solid var(--warm-mid);
+  background:var(--parchment);display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all .2s;font-size:13px;color:transparent;
+}
+.shop-item.done .si-check{background:var(--green);border-color:var(--green);color:white;}
+.si-icon{font-size:20px;flex-shrink:0;}
+.si-info{flex:1;min-width:0;}
+.si-name{font-size:14px;font-weight:500;color:var(--ink);transition:color .2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.si-sub{font-size:11px;color:var(--ink-lt);}
+.si-qty{background:var(--parchment);color:var(--ink-mid);border-radius:7px;padding:4px 9px;font-size:13px;font-weight:700;border:1px solid var(--warm-mid);transition:all .2s;}
+.shop-item.done .si-qty{background:var(--green-lt);border-color:var(--green-bd);color:var(--green);}
+
+.no-order-state{text-align:center;padding:42px 20px;color:var(--ink-lt);}
+.no-order-state .noi{font-size:50px;margin-bottom:12px;}
+.no-order-state p{font-size:14px;line-height:1.6;}
+
+/* ── PAGES ── */
+.page{display:none;}
+.page.active{display:block;}
+
+/* ── LOADING / EMPTY ── */
+.loading-state{text-align:center;padding:28px 20px;color:var(--ink-lt);font-size:13px;}
+.ls-spin{display:inline-block;width:22px;height:22px;border:2.5px solid var(--warm-mid);border-top-color:var(--rust);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px;}
+.empty-state{text-align:center;padding:30px 16px;color:var(--ink-lt);}
+.empty-state .ei{font-size:44px;margin-bottom:10px;}
+.empty-state p{font-size:13px;line-height:1.6;}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:76px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:var(--ink);color:white;padding:9px 18px;border-radius:20px;
+  font-size:13px;font-weight:500;opacity:0;transition:all .28s;
+  z-index:300;pointer-events:none;white-space:nowrap;max-width:90vw;text-align:center;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-paw">🐾</div>
+    <div>
+      <div class="logo-text">Paw Approved</div>
+      <div class="logo-sub">Cat Food Journal</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-dot" id="liveDot" title="Firebase connection"></div>
+    <button id="configBtn" onclick="alert('Config is baked in ✅\nProject: paw-approved')" title="Firebase config">⚙️</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ══════════ LOG ══════════ -->
+  <div class="page active" id="page-log">
+    <div class="section-title">Log a Food</div>
+    <div class="section-sub">Snap it, rate it, remember it.</div>
+
+    <div class="card">
+      <div class="card-label">
+        📷 Food Photo
+        <span class="ai-badge" id="aiBadge">✨ AI Filled</span>
+      </div>
+      <div class="photo-zone" id="photoZone">
+        <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(event)" id="photoInput">
+        <img id="photoPreview" alt="">
+        <div class="scan-overlay" id="scanOverlay">
+          <div class="spin"></div>
+          <span>Reading the label…</span>
+        </div>
+        <div class="ph-icon" id="phIcon">🥫</div>
+        <div class="ph-text" id="phText">Tap to take a photo<br>or choose from library</div>
+        <div class="ph-small" id="phSmall">AI will read the can label ✨</div>
+      </div>
+      <div class="food-meta">
+        <div class="fg"><label>Brand</label><input type="text" id="fBrand" placeholder="e.g. Fancy Feast"></div>
+        <div class="fg"><label>Flavor / Name</label><input type="text" id="fFlavor" placeholder="e.g. Chicken Gravy"></div>
+        <div class="fg">
+          <label>Texture</label>
+          <select id="fType">
+            <option>Pâté</option><option>Gravy</option><option>Shreds</option>
+            <option>Chunks</option><option>Broth</option><option>Mousse</option><option>Other</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Protein</label>
+          <select id="fProtein">
+            <option>Chicken</option><option>Turkey</option><option>Salmon</option>
+            <option>Tuna</option><option>Beef</option><option>Duck</option>
+            <option>Shrimp</option><option>Mixed</option>
+          </select>
+        </div>
+        <div class="fg full"><label>Notes</label><textarea id="fNotes" placeholder="Anything to remember…"></textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">🐱 How did they like it?</div>
+      <div class="cats-section">
+        <div class="cat-card seb">
+          <div class="cat-header">
+            <div class="cat-avatar seb">🤍</div>
+            <div>
+              <div class="cat-name seb">Sebastian</div>
+              <div class="cat-desc">All white boy · Very particular</div>
+            </div>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Did he try it?</span>
+            <button class="tog on seb" id="sebToggle" onclick="toggleCat('seb')"></button>
+          </div>
+          <div id="sebRating">
+            <div class="rating-lbl">How much did he like it?</div>
+            <div class="paw-rating">
+              <button class="paw-btn seb" onclick="rate('seb',1,this)"><span class="pe">😒</span>Refused</button>
+              <button class="paw-btn seb" onclick="rate('seb',2,this)"><span class="pe">😐</span>Meh</button>
+              <button class="paw-btn seb" onclick="rate('seb',3,this)"><span class="pe">😸</span>Liked</button>
+              <button class="paw-btn seb" onclick="rate('seb',4,this)"><span class="pe">🤩</span>Loved!</button>
+            </div>
+          </div>
+        </div>
+        <div class="cat-card but">
+          <div class="cat-header">
+            <div class="cat-avatar but">🧡</div>
+            <div>
+              <div class="cat-name but">Butters</div>
+              <div class="cat-desc">Orange girl · Enthusiastic eater</div>
+            </div>
+          </div>
+          <div class="toggle-row">
+            <span class="toggle-label">Did she try it?</span>
+            <button class="tog on but" id="butToggle" onclick="toggleCat('but')"></button>
+          </div>
+          <div id="butRating">
+            <div class="rating-lbl">How much did she like it?</div>
+            <div class="paw-rating">
+              <button class="paw-btn but" onclick="rate('but',1,this)"><span class="pe">😒</span>Refused</button>
+              <button class="paw-btn but" onclick="rate('but',2,this)"><span class="pe">😐</span>Meh</button>
+              <button class="paw-btn but" onclick="rate('but',3,this)"><span class="pe">😸</span>Liked</button>
+              <button class="paw-btn but" onclick="rate('but',4,this)"><span class="pe">🤩</span>Loved!</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-p" id="saveBtn" onclick="saveFood()">🐾 Save to Journal</button>
+  </div>
+
+  <!-- ══════════ JOURNAL ══════════ -->
+  <div class="page" id="page-journal">
+    <div class="section-title">Food Journal</div>
+    <div class="section-sub">Everything Sebastian & Butters have tried.</div>
+    <div class="filter-row" id="journalFilters">
+      <button class="chip on" onclick="setJournalFilter(this,'all')">All</button>
+      <button class="chip"    onclick="setJournalFilter(this,'both')">🐾 Both Love</button>
+      <button class="chip"    onclick="setJournalFilter(this,'seb')">🤍 Sebastian</button>
+      <button class="chip"    onclick="setJournalFilter(this,'but')">🧡 Butters</button>
+    </div>
+    <div class="streak-row">
+      <div class="streak-card seb"><div class="streak-num seb" id="sebCount">—</div><div class="streak-lbl">Seb Approved</div></div>
+      <div class="streak-card but"><div class="streak-num but" id="butCount">—</div><div class="streak-lbl">Butters Approved</div></div>
+    </div>
+    <div id="journalList"><div class="loading-state"><div class="ls-spin"></div><br>Loading journal…</div></div>
+  </div>
+
+  <!-- ══════════ ORDER (wife) ══════════ -->
+  <div class="page" id="page-order">
+    <div class="section-title">Create an Order</div>
+    <div class="section-sub">Build the list — Erik will shop it. 🛒</div>
+
+    <div class="card">
+      <div class="card-label">📅 Date range needed</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
+        <div class="fg"><label>Starting</label><input type="date" id="oFrom"></div>
+        <div class="fg"><label>Through</label><input type="date" id="oTo"></div>
+      </div>
+      <div style="margin-top:11px;">
+        <div class="card-label" style="margin-bottom:7px;">⭐ Include foods both cats rated at least</div>
+        <div style="display:flex;gap:7px;">
+          <button class="chip"    id="rc2" onclick="setMinRating(2)">😐 Meh+</button>
+          <button class="chip on" id="rc3" onclick="setMinRating(3)">😸 Liked+</button>
+          <button class="chip"    id="rc4" onclick="setMinRating(4)">🤩 Loved only</button>
+        </div>
+      </div>
+      <div style="margin-top:11px;">
+        <div class="card-label" style="margin-bottom:7px;">🏷️ Order name</div>
+        <div class="fg"><input type="text" id="oName" placeholder="e.g. June Order"></div>
+      </div>
+      <button class="btn-p" onclick="buildOrder()" id="buildBtn">📋 Build Order List</button>
+    </div>
+
+    <div class="order-summary" id="orderSummaryCard" style="display:none;">
+      <div class="os-title" id="oSumTitle">—</div>
+      <div class="os-sub"   id="oSumSub">—</div>
+      <div class="os-stats">
+        <div class="os-stat"><div class="os-num" id="oSumCans">0</div><div class="os-lbl">Cans Total</div></div>
+        <div class="os-div"></div>
+        <div class="os-stat"><div class="os-num" id="oSumVar">0</div><div class="os-lbl">Varieties</div></div>
+        <div class="os-div"></div>
+        <div class="os-stat"><div class="os-num" id="oSumMin">0</div><div class="os-lbl">Min per variety</div></div>
+      </div>
+    </div>
+
+    <div id="orderPreviewList"></div>
+    <button class="btn-p" id="sendOrderBtn" onclick="saveOrder()" style="display:none;margin-bottom:24px;">✅ Send to Erik's Shopping List</button>
+
+    <div style="margin-top:6px;">
+      <div class="section-title" style="font-size:18px;margin-bottom:3px;">Past Orders</div>
+      <div class="section-sub">Orders you've created.</div>
+      <div id="pastOrdersList"><div class="loading-state"><div class="ls-spin"></div><br>Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════ SHOPPING (Erik) ══════════ -->
+  <div class="page" id="page-shop">
+    <div class="section-title">Shopping</div>
+    <div class="section-sub">Check items off as you go.</div>
+    <div id="activeShopSection"><div class="loading-state"><div class="ls-spin"></div><br>Checking for active orders…</div></div>
+    <div style="margin-top:20px;">
+      <div class="section-title" style="font-size:17px;margin-bottom:3px;">Completed</div>
+      <div class="section-sub">Orders you've already shopped.</div>
+      <div id="completedOrdersList"></div>
+    </div>
+  </div>
+
+</main>
+
+<nav>
+  <button class="active" id="nav-log" onclick="switchPage('log')">
+    <span class="nav-icon">📷</span>Log Food
+  </button>
+  <button id="nav-journal" onclick="switchPage('journal')">
+    <span class="nav-icon">📖</span>Journal
+  </button>
+  <button id="nav-order" onclick="switchPage('order')">
+    <span class="nav-icon">📋</span>Order
+  </button>
+  <button id="nav-shop" onclick="switchPage('shop')">
+    <span class="nav-icon">🛒</span>Shopping
+    <span class="nav-badge" id="shopBadge"></span>
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+// ═══════════════════════════════════════════════
+//  PAW APPROVED — App Logic
+// ═══════════════════════════════════════════════
+
+const proteinIcon  = {Chicken:'🍗',Turkey:'🍗',Salmon:'🐟',Tuna:'🐟',Beef:'🥩',Duck:'🦆',Shrimp:'🦐',Mixed:'🥫'};
+const ratingEmoji  = ['','😒','😐','😸','🤩'];
+const ratingLabel  = ['','Refused','Meh','Liked','Loved!'];
+
+let allFoods      = [];
+let journalFilter = 'all';
+let minRating     = 3;
+let orderItems    = [];
+let currentFile   = null;
+
+// ── Wait for Firebase ──────────────────────────
+function whenFB(fn) {
+  if (window._fbReady) { fn(); return; }
+  document.addEventListener('fb-ready', fn, { once:true });
+}
+
+// ── Firebase live ──────────────────────────────
+whenFB(() => {
+  const { collection, query, orderBy, onSnapshot } = window._fb;
+  const db = window._db;
+
+  // Signal connection
+  document.getElementById('liveDot').classList.add('live');
+
+  // Foods — live
+  onSnapshot(
+    query(collection(db,'foods'), orderBy('createdAt','desc')),
+    snap => {
+      allFoods = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      renderJournal();
+      updateStreaks();
+    },
+    err => console.error('Foods listener:', err)
+  );
+
+  // Orders — live
+  onSnapshot(
+    query(collection(db,'orders'), orderBy('createdAt','desc')),
+    snap => {
+      const orders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      renderPastOrders(orders);
+      renderShoppingTab(orders);
+      updateShopBadge(orders);
+    },
+    err => console.error('Orders listener:', err)
+  );
+});
+
+// ═══════════════════════════════════════════════
+//  NAVIGATION
+// ═══════════════════════════════════════════════
+window.switchPage = function(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  window.scrollTo(0,0);
+};
+
+// ═══════════════════════════════════════════════
+//  AI LABEL SCANNER
+// ═══════════════════════════════════════════════
+window.handlePhoto = async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  currentFile = file;
+
+  // Show preview right away
+  const preview = document.getElementById('photoPreview');
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+  ['phIcon','phText','phSmall'].forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById('aiBadge').classList.remove('on');
+  document.getElementById('scanOverlay').classList.add('on');
+
+  try {
+    const b64 = await toBase64(file);
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:400,
+        messages:[{
+          role:'user',
+          content:[
+            { type:'image', source:{ type:'base64', media_type:file.type||'image/jpeg', data:b64 } },
+            { type:'text',  text:`Read this cat food can label and return ONLY valid JSON, no markdown:
+{"brand":"","flavor":"","type":"Pâté|Gravy|Shreds|Chunks|Broth|Mousse|Other","protein":"Chicken|Turkey|Salmon|Tuna|Beef|Duck|Shrimp|Mixed","notes":""}
+Empty string for anything unclear.` }
+          ]
+        }]
+      })
+    });
+    const data = await resp.json();
+    const raw  = (data.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim();
+    const p    = JSON.parse(raw);
+    applyAI(p);
+    document.getElementById('aiBadge').classList.add('on');
+    showToast('✨ Label read — check the fields!');
+  } catch(err) {
+    console.warn('AI scan failed:', err);
+    showToast('Couldn\'t read label — fill in manually 📝');
+  } finally {
+    document.getElementById('scanOverlay').classList.remove('on');
+  }
+};
+
+function toBase64(file) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload  = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function applyAI(p) {
+  const textMap = { brand:'fBrand', flavor:'fFlavor', notes:'fNotes' };
+  for (const [key,id] of Object.entries(textMap)) {
+    if (!p[key]) continue;
+    const el = document.getElementById(id);
+    el.value = p[key];
+    el.classList.add('ai-filled');
+  }
+  for (const [id,key] of [['fType','type'],['fProtein','protein']]) {
+    if (!p[key]) continue;
+    const sel = document.getElementById(id);
+    for (const o of sel.options) {
+      if (o.text.toLowerCase() === p[key].toLowerCase()) { sel.value = o.value; break; }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  SAVE FOOD ENTRY
+// ═══════════════════════════════════════════════
+window.saveFood = async function() {
+  const brand  = document.getElementById('fBrand').value.trim();
+  const flavor = document.getElementById('fFlavor').value.trim();
+  if (!brand || !flavor) { showToast('Enter a brand and flavor name first 📝'); return; }
+  if (!window._db)       { showToast('Firebase not connected yet — wait a moment'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    // Upload photo
+    let photoURL = null;
+    if (currentFile && window._stor) {
+      const { sRef, uploadBytes, getDownloadURL } = window._fb;
+      const ref  = sRef(window._stor, `foods/${Date.now()}_${currentFile.name}`);
+      const snap = await uploadBytes(ref, currentFile);
+      photoURL   = await getDownloadURL(snap.ref);
+    }
+
+    const { collection, addDoc, serverTimestamp } = window._fb;
+    await addDoc(collection(window._db,'foods'), {
+      brand,
+      flavor,
+      type:      document.getElementById('fType').value,
+      protein:   document.getElementById('fProtein').value,
+      notes:     document.getElementById('fNotes').value.trim(),
+      photoURL,
+      sebTried:  tried.seb,
+      butTried:  tried.but,
+      sebRating: tried.seb ? ratings.seb : 0,
+      butRating: tried.but ? ratings.but : 0,
+      createdAt: serverTimestamp()
+    });
+
+    showToast('🐾 Saved to journal!');
+    resetLogForm();
+    setTimeout(() => switchPage('journal'), 600);
+  } catch(err) {
+    console.error('Save food:', err);
+    showToast('Save failed — check console for details');
+  } finally {
+    btn.disabled = false; btn.textContent = '🐾 Save to Journal';
+  }
+};
+
+// ── cat state ──────────────────────────────────
+const ratings = { seb:0, but:0 };
+const tried   = { seb:true, but:true };
+
+window.toggleCat = function(cat) {
+  tried[cat] = !tried[cat];
+  document.getElementById(cat+'Toggle').classList.toggle('on', tried[cat]);
+  const r = document.getElementById(cat+'Rating');
+  r.style.opacity      = tried[cat] ? '1' : '0.38';
+  r.style.pointerEvents= tried[cat] ? 'auto' : 'none';
+};
+
+window.rate = function(cat, val, btn) {
+  ratings[cat] = val;
+  document.querySelectorAll('.paw-btn.'+cat).forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+};
+
+function resetLogForm() {
+  ['fBrand','fFlavor','fNotes'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = '';
+    el.classList.remove('ai-filled');
+  });
+  document.getElementById('fType').selectedIndex    = 0;
+  document.getElementById('fProtein').selectedIndex = 0;
+  document.getElementById('photoPreview').style.display = 'none';
+  ['phIcon','phText','phSmall'].forEach(id => document.getElementById(id).style.display = '');
+  document.getElementById('aiBadge').classList.remove('on');
+  document.getElementById('photoInput').value = '';
+  currentFile = null;
+  ratings.seb = 0; ratings.but = 0;
+  tried.seb   = true; tried.but = true;
+  ['seb','but'].forEach(c => {
+    document.getElementById(c+'Toggle').className = 'tog on '+c;
+    document.querySelectorAll('.paw-btn.'+c).forEach(b => b.classList.remove('sel'));
+    const r = document.getElementById(c+'Rating');
+    r.style.opacity = '1'; r.style.pointerEvents = 'auto';
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  JOURNAL
+// ═══════════════════════════════════════════════
+window.setJournalFilter = function(btn, f) {
+  document.querySelectorAll('#journalFilters .chip').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  journalFilter = f;
+  renderJournal();
+};
+
+function renderJournal() {
+  const list   = document.getElementById('journalList');
+  const foods  = applyJournalFilter(allFoods);
+
+  if (!foods.length) {
+    const msg = journalFilter === 'all'
+      ? 'No foods logged yet.<br>Start by snapping a photo!'
+      : 'No foods match this filter yet.';
+    list.innerHTML = `<div class="empty-state"><div class="ei">📭</div><p>${msg}</p></div>`;
+    return;
+  }
+
+  list.innerHTML = foods.map(f => {
+    const icon  = proteinIcon[f.protein] || '🥫';
+    const thumb = f.photoURL
+      ? `<div class="food-thumb"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
+      : `<div class="food-thumb">${icon}</div>`;
+    const sebBadge = f.sebTried
+      ? `<span class="cat-badge seb">🤍 ${ratingEmoji[f.sebRating]||'—'} ${ratingLabel[f.sebRating]||'Not rated'}</span>`
+      : `<span class="cat-badge no">🤍 Not tried</span>`;
+    const butBadge = f.butTried
+      ? `<span class="cat-badge but">🧡 ${ratingEmoji[f.butRating]||'—'} ${ratingLabel[f.butRating]||'Not rated'}</span>`
+      : `<span class="cat-badge no">🧡 Not tried</span>`;
+    return `<div class="food-item">
+      ${thumb}
+      <div class="food-info">
+        <div class="food-name">${esc(f.flavor)}</div>
+        <div class="food-brand">${esc(f.brand)} · ${esc(f.type||'')}</div>
+        <div class="food-cats">${sebBadge}${butBadge}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function applyJournalFilter(foods) {
+  return foods.filter(f => {
+    const sebOk = f.sebTried && f.sebRating >= 3;
+    const butOk = f.butTried && f.butRating >= 3;
+    if (journalFilter === 'both') return sebOk && butOk;
+    if (journalFilter === 'seb')  return sebOk;
+    if (journalFilter === 'but')  return butOk;
+    return true;
+  });
+}
+
+function updateStreaks() {
+  document.getElementById('sebCount').textContent = allFoods.filter(f => f.sebTried && f.sebRating >= 3).length;
+  document.getElementById('butCount').textContent = allFoods.filter(f => f.butTried && f.butRating >= 3).length;
+}
+
+// ═══════════════════════════════════════════════
+//  WEIGHTED ORDER BUILDER
+//  Score = (sebRating + butRating) / 2  → 2.0–4.0
+//  Cans  = proportional to score, floor, min 2
+//  Remainder → highest-score foods first
+// ═══════════════════════════════════════════════
+window.setMinRating = function(val) {
+  minRating = val;
+  ['rc2','rc3','rc4'].forEach(id => document.getElementById(id).classList.remove('on'));
+  document.getElementById('rc'+val).classList.add('on');
+};
+
+window.buildOrder = function() {
+  const from = document.getElementById('oFrom').value;
+  const to   = document.getElementById('oTo').value;
+  if (!from || !to) { showToast('Pick start and end dates first 📅'); return; }
+
+  const days = Math.max(1, Math.round((new Date(to) - new Date(from)) / 86400000));
+
+  // Must be tried by BOTH cats and both meet minRating
+  const eligible = allFoods.filter(f =>
+    f.sebTried && f.butTried &&
+    f.sebRating >= minRating &&
+    f.butRating >= minRating
+  );
+
+  if (eligible.length === 0) {
+    showToast(`No foods where BOTH cats rated ≥${ratingLabel[minRating]}. Log more or lower the filter!`);
+    return;
+  }
+
+  // Score & initial floor allocation
+  const scored     = eligible.map(f => ({ ...f, score:(f.sebRating+f.butRating)/2 }));
+  const totalScore = scored.reduce((s,f) => s+f.score, 0);
+  let   alloc      = scored.map(f => ({
+    ...f,
+    cans: Math.max(2, Math.floor((f.score/totalScore)*days))
+  }));
+
+  // Trim or pad to exactly 'days' cans, highest-frac first
+  const withFrac = alloc
+    .map(a => ({ ...a, frac:(a.score/totalScore)*days - a.cans }))
+    .sort((x,y) => y.frac - x.frac);
+
+  let total = withFrac.reduce((s,a) => s+a.cans, 0);
+  let i=0;
+  while (total < days) { withFrac[i%withFrac.length].cans++; total++; i++; }
+  while (total > days) {
+    const idx = i%withFrac.length;
+    if (withFrac[idx].cans > 2) { withFrac[idx].cans--; total--; }
+    i++;
+    if (i > days*2) break; // safety
+  }
+
+  orderItems = withFrac.sort((a,b) => b.cans - a.cans);
+
+  // Update summary
+  const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  document.getElementById('oSumTitle').textContent = `${days}-Day Order`;
+  document.getElementById('oSumSub').textContent   = `${fl(from)} – ${fl(to)} · 1 can/day shared`;
+  document.getElementById('oSumCans').textContent  = days;
+  document.getElementById('oSumVar').textContent   = orderItems.length;
+  document.getElementById('oSumMin').textContent   = Math.min(...orderItems.map(o=>o.cans));
+  document.getElementById('orderSummaryCard').style.display = '';
+  document.getElementById('sendOrderBtn').style.display     = '';
+
+  // Render preview items
+  document.getElementById('orderPreviewList').innerHTML = orderItems.map(f => {
+    const icon   = proteinIcon[f.protein] || '🥫';
+    const filled = Math.round(f.score);
+    const stars  = '★'.repeat(filled) + '☆'.repeat(4-filled);
+    return `<div class="opi">
+      <div class="opi-icon">${icon}</div>
+      <div class="opi-info">
+        <div class="opi-name">${esc(f.flavor)}</div>
+        <div class="opi-brand">${esc(f.brand)} · ${esc(f.type||'')}</div>
+        <div class="opi-stars">${stars} avg</div>
+      </div>
+      <div class="opi-qty">×${f.cans}</div>
+    </div>`;
+  }).join('');
+
+  showToast(`Built: ${orderItems.length} varieties across ${days} cans ✅`);
+};
+
+// ═══════════════════════════════════════════════
+//  SAVE ORDER TO FIRESTORE
+// ═══════════════════════════════════════════════
+window.saveOrder = async function() {
+  if (!orderItems.length)  { showToast('Build the list first 📋'); return; }
+  if (!window._db)         { showToast('Firebase not ready yet'); return; }
+
+  const from = document.getElementById('oFrom').value;
+  const to   = document.getElementById('oTo').value;
+  const days = Math.max(1, Math.round((new Date(to)-new Date(from))/86400000));
+  const fl   = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const name = document.getElementById('oName').value.trim() || `${fl(from)} Order`;
+
+  const btn = document.getElementById('sendOrderBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  try {
+    const { collection, addDoc, serverTimestamp } = window._fb;
+    await addDoc(collection(window._db,'orders'), {
+      name,
+      dateFrom:  from,
+      dateTo:    to,
+      days,
+      minRating,
+      status:    'active',
+      createdAt: serverTimestamp(),
+      items: orderItems.map(f => ({
+        foodId:   f.id,
+        brand:    f.brand,
+        flavor:   f.flavor,
+        type:     f.type   || '',
+        protein:  f.protein|| '',
+        photoURL: f.photoURL||null,
+        cans:     f.cans,
+        score:    f.score,
+        checked:  false
+      }))
+    });
+
+    showToast(`"${name}" sent to Erik's Shopping tab! 🛒`);
+    // reset
+    orderItems = [];
+    document.getElementById('orderSummaryCard').style.display = 'none';
+    document.getElementById('orderPreviewList').innerHTML     = '';
+    document.getElementById('sendOrderBtn').style.display     = 'none';
+    document.getElementById('oName').value = '';
+    setTimeout(() => switchPage('shop'), 700);
+  } catch(err) {
+    console.error('Save order:', err);
+    showToast('Save failed — check console');
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ Send to Erik\'s Shopping List';
+  }
+};
+
+// ═══════════════════════════════════════════════
+//  PAST ORDERS (Order tab)
+// ═══════════════════════════════════════════════
+function renderPastOrders(orders) {
+  const el = document.getElementById('pastOrdersList');
+  if (!orders.length) {
+    el.innerHTML = `<div class="empty-state"><div class="ei">📭</div><p>No orders yet.</p></div>`;
+    return;
+  }
+  const statusLabel = { active:'🛒 Erik Shopping', shopping:'🛒 In Progress', complete:'✅ Completed' };
+  const statusClass = s => s==='complete' ? 'complete' : s==='shopping' ? 'shopping' : 'active';
+  const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+  el.innerHTML = orders.map(o => {
+    const checked = (o.items||[]).filter(it=>it.checked).length;
+    const total   = (o.items||[]).length;
+    const chips   = (o.items||[]).slice(0,5).map(it =>
+      `<span class="soc-chip">${proteinIcon[it.protein]||'🥫'} ${esc(it.flavor)} ×${it.cans}</span>`
+    ).join('') + (total>5 ? `<span class="soc-chip">+${total-5} more</span>` : '');
+    return `<div class="soc">
+      <div class="soc-hdr">
+        <div class="soc-name">${esc(o.name)}</div>
+        <span class="soc-status ${statusClass(o.status)}">${statusLabel[o.status]||o.status}</span>
+      </div>
+      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${checked}/${total} checked</div>
+      <div class="soc-chips">${chips}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  SHOPPING TAB — grouped by brand, real-time
+// ═══════════════════════════════════════════════
+function renderShoppingTab(orders) {
+  const active = orders.find(o => o.status==='active' || o.status==='shopping');
+  const done   = orders.filter(o => o.status==='complete');
+  const sec    = document.getElementById('activeShopSection');
+
+  if (!active) {
+    sec.innerHTML = `<div class="no-order-state">
+      <div class="noi">🛒</div>
+      <p>No active order yet.<br>Ask your wife to build one<br>in the <strong>Order</strong> tab!</p>
+    </div>
+    <button class="btn-s" onclick="switchPage('order')">Go to Order Tab →</button>`;
+    renderCompletedOrders(done);
+    return;
+  }
+
+  const items      = active.items || [];
+  const checked    = items.filter(it=>it.checked).length;
+  const pct        = items.length ? Math.round(checked/items.length*100) : 0;
+  const fl         = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+  // Group by brand
+  const byBrand = {};
+  items.forEach((it,idx) => {
+    const b = it.brand||'Other';
+    (byBrand[b] = byBrand[b]||[]).push({ ...it, _idx:idx });
+  });
+
+  const brandHTML = Object.entries(byBrand)
+    .sort(([a],[b]) => a.localeCompare(b))
+    .map(([brand, brandItems]) => {
+      const rows = brandItems.map(it => {
+        const icon = proteinIcon[it.protein]||'🥫';
+        const cls  = it.checked ? 'shop-item done' : 'shop-item';
+        return `<div class="${cls}" onclick="toggleItem('${active.id}',${it._idx},this)">
+          <div class="si-check">✓</div>
+          <div class="si-icon">${icon}</div>
+          <div class="si-info">
+            <div class="si-name">${esc(it.flavor)}</div>
+            <div class="si-sub">${esc(it.type||'')} · ${it.cans} cans needed</div>
+          </div>
+          <div class="si-qty">×${it.cans}</div>
+        </div>`;
+      }).join('');
+      return `<div class="brand-group">
+        <div class="brand-group-label">${esc(brand)}</div>
+        ${rows}
+      </div>`;
+    }).join('');
+
+  sec.innerHTML = `
+    <div class="active-banner">
+      <div class="ab-lbl">Active Order from Wife</div>
+      <div class="ab-title">${esc(active.name)}</div>
+      <div class="ab-meta">${fl(active.dateFrom)} – ${fl(active.dateTo)} · ${active.days} cans total</div>
+      <div class="ab-prog"><div class="ab-fill" style="width:${pct}%"></div></div>
+      <div class="ab-count">${checked} of ${items.length} varieties found</div>
+    </div>
+    ${brandHTML}
+    <button class="btn-p green" onclick="completeOrder('${active.id}')">🎉 Mark Order Complete</button>
+  `;
+
+  renderCompletedOrders(done);
+}
+
+function renderCompletedOrders(done) {
+  const el = document.getElementById('completedOrdersList');
+  if (!done.length) { el.innerHTML=''; return; }
+  const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  el.innerHTML = done.map(o => `<div class="soc">
+    <div class="soc-hdr">
+      <div class="soc-name">${esc(o.name)}</div>
+      <span class="soc-status complete">Completed</span>
+    </div>
+    <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${(o.items||[]).length} varieties</div>
+  </div>`).join('');
+}
+
+// ── toggle item checked in Firestore ──
+window.toggleItem = async function(orderId, itemIdx, el) {
+  el.classList.toggle('done');
+  const isChecked = el.classList.contains('done');
+  try {
+    const { doc, getDoc, updateDoc } = window._fb;
+    const ref  = doc(window._db,'orders',orderId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const items = [...snap.data().items];
+    items[itemIdx] = { ...items[itemIdx], checked:isChecked };
+    await updateDoc(ref, { items, status:'shopping' });
+  } catch(err) {
+    console.error('Toggle item:', err);
+    el.classList.toggle('done'); // revert
+    showToast('Couldn\'t save — check connection');
+  }
+};
+
+// ── mark order complete ──
+window.completeOrder = async function(orderId) {
+  const unchecked = document.querySelectorAll('#activeShopSection .shop-item:not(.done)').length;
+  if (unchecked > 0) {
+    showToast(`${unchecked} item${unchecked>1?'s':''} still need checking off!`);
+    return;
+  }
+  try {
+    const { doc, updateDoc } = window._fb;
+    await updateDoc(doc(window._db,'orders',orderId), { status:'complete' });
+    showToast('🎉 Order complete — great shopping, Erik!');
+  } catch(err) {
+    showToast('Error completing order — check connection');
+  }
+};
+
+// ── shopping tab badge ──
+function updateShopBadge(orders) {
+  const active = orders.filter(o => o.status==='active'||o.status==='shopping').length;
+  const badge  = document.getElementById('shopBadge');
+  badge.textContent = active||'';
+  badge.classList.toggle('show', active>0);
+}
+
+// ═══════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════
+function esc(str) {
+  return String(str||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.showToast = function(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('on'), 2800);
+};
+
+// ── default date range ──
+const today = new Date();
+const fmt   = d => d.toISOString().split('T')[0];
+const end30 = new Date(today); end30.setDate(today.getDate()+30);
+document.getElementById('oFrom').value = fmt(today);
+document.getElementById('oTo').value   = fmt(end30);
+</script>
+</body>
+</html>
