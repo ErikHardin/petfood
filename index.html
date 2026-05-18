@@ -378,6 +378,53 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 /* ── RATE LATER BADGE ── */
 .cat-badge.rate-later{background:var(--amber-lt);color:var(--amber);border:1px dashed var(--amber);}
 
+/* ── SCAN BUTTON ── */
+.scan-btn{
+  width:100%;padding:13px;background:var(--rust);color:white;
+  border:none;border-radius:var(--r);font-size:15px;font-weight:500;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  gap:8px;margin-bottom:14px;transition:opacity .2s;font-family:'DM Sans',sans-serif;
+}
+.scan-btn:active{opacity:.8;}
+
+/* ── LIVE SCANNER MODAL ── */
+#scannerModal{
+  position:fixed;inset:0;z-index:600;
+  background:#000;display:flex;flex-direction:column;align-items:center;
+}
+#scannerModal.hidden{display:none;}
+#scannerVideo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+.scanner-ui{
+  position:relative;z-index:1;width:100%;height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:48px 24px 52px;
+}
+.scanner-hint{
+  color:white;font-size:14px;text-align:center;
+  text-shadow:0 1px 6px rgba(0,0,0,.9);letter-spacing:.2px;
+}
+.scanner-frame{
+  width:280px;height:165px;position:relative;
+  box-shadow:0 0 0 100vmax rgba(0,0,0,.58);border-radius:6px;
+}
+.scanner-corner{position:absolute;width:24px;height:24px;border-color:white;border-style:solid;}
+.scanner-corner.tl{top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0;}
+.scanner-corner.tr{top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0;}
+.scanner-corner.bl{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px;}
+.scanner-corner.br{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0;}
+.scanner-line{
+  position:absolute;left:4px;right:4px;height:2px;
+  background:linear-gradient(90deg,transparent,var(--rust-lt),transparent);
+  animation:scanline 2s ease-in-out infinite;
+}
+@keyframes scanline{0%,100%{top:8px;}50%{top:calc(100% - 10px);}}
+.scanner-cancel{
+  background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.5);
+  color:white;padding:12px 44px;border-radius:28px;font-size:15px;
+  cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:500;
+  backdrop-filter:blur(8px);
+}
+
 /* ── PIN LOCK SCREEN ── */
 #pinScreen{
   position:fixed;inset:0;z-index:9999;
@@ -474,6 +521,22 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
   </div>
 </div>
 
+<!-- LIVE SCANNER MODAL -->
+<div id="scannerModal" class="hidden">
+  <video id="scannerVideo" playsinline muted></video>
+  <div class="scanner-ui">
+    <p class="scanner-hint">Point the barcode at the target</p>
+    <div class="scanner-frame">
+      <div class="scanner-line"></div>
+      <span class="scanner-corner tl"></span>
+      <span class="scanner-corner tr"></span>
+      <span class="scanner-corner bl"></span>
+      <span class="scanner-corner br"></span>
+    </div>
+    <button class="scanner-cancel" onclick="closeScanner()">Cancel</button>
+  </div>
+</div>
+
 <header>
   <div class="logo">
     <div class="logo-paw">🐾</div>
@@ -503,15 +566,13 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
       <div class="photo-zone" id="photoZone">
         <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(event)" id="photoInput">
         <img id="photoPreview" alt="">
-        <div class="scan-overlay" id="scanOverlay">
-          <div class="spin"></div>
-          <span>Scanning barcode…</span>
-        </div>
         <div class="ph-icon" id="phIcon">🥫</div>
-        <div class="ph-text" id="phText">Tap to take a photo<br>or choose from library</div>
-        <div class="ph-small" id="phSmall">Snap the barcode on the can</div>
+        <div class="ph-text" id="phText">Tap to add a journal photo<br><span style="font-size:11px;opacity:.7">(optional)</span></div>
       </div>
       <div class="food-meta">
+        <button class="scan-btn" onclick="openScanner()">
+          <span style="font-size:20px">📷</span> Scan Barcode to Fill In
+        </button>
         <div class="fg"><label>Brand</label><input type="text" id="fBrand" placeholder="e.g. Fancy Feast"></div>
         <div class="fg"><label>Flavor / Name</label><input type="text" id="fFlavor" placeholder="e.g. Chicken Gravy"></div>
         <div class="fg">
@@ -954,11 +1015,12 @@ window.switchPage = function(name) {
 };
 
 // ═══════════════════════════════════════════════
-//  BARCODE SCANNER
+//  LIVE BARCODE SCANNER
 // ═══════════════════════════════════════════════
-let _zxingReady = false;
+let _zxingReady   = false;
+let _scanControls = null;
+
 async function ensureZXing() {
-  if ('BarcodeDetector' in window) return;
   if (_zxingReady) return;
   await new Promise((res, rej) => {
     const s = document.createElement('script');
@@ -969,31 +1031,45 @@ async function ensureZXing() {
   _zxingReady = true;
 }
 
-async function detectBarcode(imgEl) {
-  // Draw the already-browser-decoded image to canvas (avoids HEIC/format issues)
-  const canvas = document.createElement('canvas');
-  canvas.width  = imgEl.naturalWidth  || imgEl.width;
-  canvas.height = imgEl.naturalHeight || imgEl.height;
-  canvas.getContext('2d').drawImage(imgEl, 0, 0, canvas.width, canvas.height);
-
-  if ('BarcodeDetector' in window) {
-    try {
-      const bd = new BarcodeDetector();
-      const results = await bd.detect(canvas);
-      if (results.length) return results[0].rawValue;
-    } catch(e) { console.warn('BarcodeDetector err:', e); }
-  }
-
-  await ensureZXing();
+window.openScanner = async function() {
+  document.getElementById('scannerModal').classList.remove('hidden');
   try {
+    await ensureZXing();
+    const video  = document.getElementById('scannerVideo');
     const reader = new ZXingBrowser.BrowserMultiFormatReader();
-    const result = await reader.decodeFromCanvas(canvas);
-    return result ? result.getText() : null;
-  } catch { return null; }
+    _scanControls = await reader.decodeFromConstraints(
+      { video: { facingMode: 'environment' } },
+      video,
+      async (result) => {
+        if (!result) return;
+        closeScanner();
+        await handleBarcodeResult(result.getText());
+      }
+    );
+  } catch(e) {
+    console.error('Scanner start failed:', e);
+    closeScanner();
+    showToast('Camera unavailable — fill in manually 📝');
+  }
+};
+
+window.closeScanner = function() {
+  if (_scanControls) { try { _scanControls.stop(); } catch {} _scanControls = null; }
+  document.getElementById('scannerModal').classList.add('hidden');
+};
+
+async function handleBarcodeResult(barcode) {
+  showToast('Barcode found — looking up…');
+  try {
+    const product = await lookupBarcode(barcode);
+    if (!product) { showToast('Product not in database — fill in manually 📝'); return; }
+    applyFields(product);
+    document.getElementById('aiBadge').classList.add('on');
+    showToast('📦 Auto-filled from barcode!');
+  } catch { showToast('Lookup failed — fill in manually 📝'); }
 }
 
 async function lookupBarcode(barcode) {
-  // Try Open Pet Food Facts first, fall back to Open Food Facts
   for (const host of ['world.openpetfoodfacts.org', 'world.openfoodfacts.org']) {
     try {
       const resp = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(barcode)}.json`);
@@ -1035,38 +1111,14 @@ function parseProduct(p) {
 
 let pendingProductPhoto = null;
 
-window.handlePhoto = async function(e) {
+window.handlePhoto = function(e) {
   const file = e.target.files[0];
   if (!file) return;
   currentFile = file;
-  pendingProductPhoto = null;
-
   const preview = document.getElementById('photoPreview');
   preview.src = URL.createObjectURL(file);
   preview.style.display = 'block';
-  ['phIcon','phText','phSmall'].forEach(id => document.getElementById(id).style.display = 'none');
-  document.getElementById('aiBadge').classList.remove('on');
-  document.getElementById('scanOverlay').classList.add('on');
-
-  try {
-    // Wait for the preview image to finish decoding (handles HEIC and slow loads)
-    await new Promise(res => { if (preview.complete && preview.naturalWidth) res(); else preview.onload = res; });
-
-    const barcode = await detectBarcode(preview);
-    if (!barcode) { showToast('Barcode not found — fill in manually 📝'); return; }
-
-    const product = await lookupBarcode(barcode);
-    if (!product)  { showToast('Product not in database — fill in manually 📝'); return; }
-
-    applyFields(product);
-    document.getElementById('aiBadge').classList.add('on');
-    showToast('📦 Auto-filled from barcode!');
-  } catch(err) {
-    console.warn('Barcode scan failed:', err);
-    showToast('Scan failed — fill in manually 📝');
-  } finally {
-    document.getElementById('scanOverlay').classList.remove('on');
-  }
+  ['phIcon','phText'].forEach(id => document.getElementById(id).style.display = 'none');
 };
 
 function applyFields(p) {
@@ -1164,7 +1216,7 @@ function resetLogForm() {
   document.getElementById('fType').selectedIndex    = 0;
   document.getElementById('fProtein').selectedIndex = 0;
   document.getElementById('photoPreview').style.display = 'none';
-  ['phIcon','phText','phSmall'].forEach(id => document.getElementById(id).style.display = '');
+  ['phIcon','phText'].forEach(id => document.getElementById(id).style.display = '');
   document.getElementById('aiBadge').classList.remove('on');
   document.getElementById('photoInput').value = '';
   currentFile = null;
