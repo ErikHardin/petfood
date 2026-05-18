@@ -990,7 +990,7 @@ async function detectBarcode(file) {
 }
 
 async function lookupBarcode(barcode) {
-  const url  = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
+  const url  = `https://world.openpetfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
   const resp = await fetch(url);
   if (!resp.ok) return null;
   const data = await resp.json();
