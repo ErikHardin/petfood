@@ -969,19 +969,22 @@ async function ensureZXing() {
   _zxingReady = true;
 }
 
-async function detectBarcode(file) {
-  const bmp = await createImageBitmap(file);
-  if ('BarcodeDetector' in window) {
-    const bd = new BarcodeDetector();
-    const results = await bd.detect(bmp);
-    if (results.length) return results[0].rawValue;
-    return null;
-  }
-  await ensureZXing();
+async function detectBarcode(imgEl) {
+  // Draw the already-browser-decoded image to canvas (avoids HEIC/format issues)
   const canvas = document.createElement('canvas');
-  canvas.width  = bmp.width;
-  canvas.height = bmp.height;
-  canvas.getContext('2d').drawImage(bmp, 0, 0);
+  canvas.width  = imgEl.naturalWidth  || imgEl.width;
+  canvas.height = imgEl.naturalHeight || imgEl.height;
+  canvas.getContext('2d').drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+
+  if ('BarcodeDetector' in window) {
+    try {
+      const bd = new BarcodeDetector();
+      const results = await bd.detect(canvas);
+      if (results.length) return results[0].rawValue;
+    } catch(e) { console.warn('BarcodeDetector err:', e); }
+  }
+
+  await ensureZXing();
   try {
     const reader = new ZXingBrowser.BrowserMultiFormatReader();
     const result = await reader.decodeFromCanvas(canvas);
@@ -990,13 +993,20 @@ async function detectBarcode(file) {
 }
 
 async function lookupBarcode(barcode) {
-  const url  = `https://world.openpetfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
-  const resp = await fetch(url);
-  if (!resp.ok) return null;
-  const data = await resp.json();
-  if (data.status !== 1 || !data.product) return null;
-  const p = data.product;
+  // Try Open Pet Food Facts first, fall back to Open Food Facts
+  for (const host of ['world.openpetfoodfacts.org', 'world.openfoodfacts.org']) {
+    try {
+      const resp = await fetch(`https://${host}/api/v2/product/${encodeURIComponent(barcode)}.json`);
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      if (data.status !== 1 || !data.product) continue;
+      return parseProduct(data.product);
+    } catch { continue; }
+  }
+  return null;
+}
 
+function parseProduct(p) {
   const brand  = p.brands ? p.brands.split(',')[0].trim() : '';
   const flavor = p.product_name_en || p.product_name || '';
   const photo  = p.image_front_url || p.image_url || null;
@@ -1039,7 +1049,10 @@ window.handlePhoto = async function(e) {
   document.getElementById('scanOverlay').classList.add('on');
 
   try {
-    const barcode = await detectBarcode(file);
+    // Wait for the preview image to finish decoding (handles HEIC and slow loads)
+    await new Promise(res => { if (preview.complete && preview.naturalWidth) res(); else preview.onload = res; });
+
+    const barcode = await detectBarcode(preview);
     if (!barcode) { showToast('Barcode not found — fill in manually 📝'); return; }
 
     const product = await lookupBarcode(barcode);
