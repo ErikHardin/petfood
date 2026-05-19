@@ -93,6 +93,8 @@ header{
 .hdr-right{display:flex;align-items:center;gap:6px;}
 .hdr-dot{width:8px;height:8px;border-radius:50%;background:var(--warm-mid);transition:background .4s;}
 .hdr-dot.live{background:#4caf50;}
+#logFoodBtn{background:none;border:none;font-size:19px;cursor:pointer;opacity:.45;transition:opacity .2s;}
+#logFoodBtn:hover{opacity:1;}
 #lockBtn{background:none;border:none;font-size:19px;cursor:pointer;opacity:.45;transition:opacity .2s;}
 #lockBtn:hover{opacity:1;}
 
@@ -100,7 +102,7 @@ header{
 nav{
   background:var(--cream);border-top:1.5px solid var(--warm-mid);
   position:sticky;bottom:0;z-index:100;
-  display:grid;grid-template-columns:repeat(4,1fr);
+  display:grid;grid-template-columns:repeat(3,1fr);
   padding-bottom:env(safe-area-inset-bottom);
 }
 nav button{
@@ -302,8 +304,14 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 /* ── SAVED ORDER CARDS ── */
 .soc{
   background:var(--snow);border-radius:var(--r-lg);padding:15px 16px;
-  border:1.5px solid var(--warm-mid);margin-bottom:11px;
+  border:1.5px solid var(--warm-mid);margin-bottom:11px;cursor:pointer;
 }
+.soc-items{display:none;margin-top:10px;border-top:1px solid var(--warm-mid);padding-top:10px;}
+.soc-items.open{display:block;}
+.soc-item-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12px;color:var(--ink-mid);border-bottom:1px solid var(--warm-mid);}
+.soc-item-row:last-child{border-bottom:none;}
+.soc-chevron{color:var(--ink-lt);font-size:11px;transition:transform .2s;}
+.soc-items.open~.soc-chevron,.soc.expanded .soc-chevron{transform:rotate(180deg);}
 .soc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .soc-name{font-family:'Playfair Display',serif;font-size:15px;color:var(--ink);}
 .soc-status{font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:500;padding:3px 9px;border-radius:20px;}
@@ -501,6 +509,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
   </div>
   <div class="hdr-right">
     <div class="hdr-dot" id="liveDot" title="Firebase connection"></div>
+    <button id="logFoodBtn" onclick="switchPage('log')" title="Log a food">✏️</button>
     <button id="lockBtn" onclick="lockApp()" title="Lock app">🔒</button>
   </div>
 </header>
@@ -508,7 +517,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
 <main>
 
   <!-- ══════════ LOG ══════════ -->
-  <div class="page active" id="page-log">
+  <div class="page" id="page-log">
     <div class="section-title">Log a Food</div>
     <div class="section-sub">Snap it, rate it, remember it.</div>
 
@@ -598,7 +607,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
   </div>
 
   <!-- ══════════ JOURNAL ══════════ -->
-  <div class="page" id="page-journal">
+  <div class="page active" id="page-journal">
     <div class="section-title">Food Journal</div>
     <div class="section-sub">Everything Sebastian & Butters have tried.</div>
     <div class="filter-row" id="journalFilters">
@@ -677,10 +686,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
 </main>
 
 <nav>
-  <button class="active" id="nav-log" onclick="switchPage('log')">
-    <span class="nav-icon">📷</span>Log Food
-  </button>
-  <button id="nav-journal" onclick="switchPage('journal')">
+  <button class="active" id="nav-journal" onclick="switchPage('journal')">
     <span class="nav-icon">📖</span>Journal
   </button>
   <button id="nav-order" onclick="switchPage('order')">
@@ -994,7 +1000,8 @@ window.switchPage = function(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
-  document.getElementById('nav-'+name).classList.add('active');
+  const navBtn = document.getElementById('nav-'+name);
+  if (navBtn) navBtn.classList.add('active');
   window.scrollTo(0,0);
 };
 
@@ -1341,16 +1348,22 @@ function renderPastOrders(orders) {
   el.innerHTML = orders.map(o => {
     const checked = (o.items||[]).filter(it=>it.checked).length;
     const total   = (o.items||[]).length;
-    const chips   = (o.items||[]).slice(0,5).map(it =>
-      `<span class="soc-chip">${proteinIcon[it.protein]||'🥫'} ${esc(it.flavor)} ×${it.cans}</span>`
-    ).join('') + (total>5 ? `<span class="soc-chip">+${total-5} more</span>` : '');
-    return `<div class="soc">
+    const completedDate = o.completedAt
+      ? ` · Shopped ${new Date(o.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
+      : '';
+    const itemsHTML = (o.items||[]).map(it =>
+      `<div class="soc-item-row">${proteinIcon[it.protein]||'🥫'} ${esc(it.flavor)} ×${it.cans}${it.outOfStock?' (OOS)':it.checked?' ✓':''}</div>`
+    ).join('');
+    return `<div class="soc" onclick="toggleOrderExpand(this)">
       <div class="soc-hdr">
         <div class="soc-name">${esc(o.name)}</div>
-        <span class="soc-status ${statusClass(o.status)}">${statusLabel[o.status]||o.status}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="soc-status ${statusClass(o.status)}">${statusLabel[o.status]||o.status}</span>
+          <span class="soc-chevron">▼</span>
+        </div>
       </div>
-      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${checked}/${total} checked</div>
-      <div class="soc-chips">${chips}</div>
+      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${checked}/${total} checked${completedDate}</div>
+      <div class="soc-items">${itemsHTML||'<p style="font-size:12px;color:var(--ink-lt);">No items</p>'}</div>
     </div>`;
   }).join('');
 }
@@ -1366,7 +1379,7 @@ function renderShoppingTab(orders) {
   if (!active) {
     sec.innerHTML = `<div class="no-order-state">
       <div class="noi">🛒</div>
-      <p>No active order yet.<br>Ask your wife to build one<br>in the <strong>Order</strong> tab!</p>
+      <p>No active order yet.<br>Ask Megan to build one<br>in the <strong>Order</strong> tab!</p>
     </div>
     <button class="btn-s" onclick="switchPage('order')">Go to Order Tab →</button>`;
     renderCompletedOrders(done);
@@ -1419,7 +1432,7 @@ function renderShoppingTab(orders) {
 
   sec.innerHTML = `
     <div class="active-banner">
-      <div class="ab-lbl">Active Order from Wife</div>
+      <div class="ab-lbl">Active Order from Megan</div>
       <div class="ab-title">${esc(active.name)}</div>
       <div class="ab-meta">${fl(active.dateFrom)} – ${fl(active.dateTo)} · ${active.days} cans total</div>
       <div class="ab-prog"><div class="ab-fill" style="width:${pct}%"></div></div>
@@ -1436,14 +1449,35 @@ function renderCompletedOrders(done) {
   const el = document.getElementById('completedOrdersList');
   if (!done.length) { el.innerHTML=''; return; }
   const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  el.innerHTML = done.map(o => `<div class="soc">
-    <div class="soc-hdr">
-      <div class="soc-name">${esc(o.name)}</div>
-      <span class="soc-status complete">Completed</span>
-    </div>
-    <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${(o.items||[]).length} varieties</div>
-  </div>`).join('');
+  el.innerHTML = done.map(o => {
+    const completedDate = o.completedAt
+      ? ` · Shopped ${new Date(o.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
+      : '';
+    const itemsHTML = (o.items||[]).map(it =>
+      `<div class="soc-item-row">${proteinIcon[it.protein]||'🥫'} ${esc(it.flavor)} ×${it.cans}${it.outOfStock?' (OOS)':''}</div>`
+    ).join('');
+    return `<div class="soc" onclick="toggleOrderExpand(this)">
+      <div class="soc-hdr">
+        <div class="soc-name">${esc(o.name)}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="soc-status complete">Completed</span>
+          <span class="soc-chevron">▼</span>
+        </div>
+      </div>
+      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${(o.items||[]).length} varieties${completedDate}</div>
+      <div class="soc-items">${itemsHTML||'<p style="font-size:12px;color:var(--ink-lt);">No items recorded</p>'}</div>
+    </div>`;
+  }).join('');
 }
+
+// ── expand/collapse past order card ──
+window.toggleOrderExpand = function(card) {
+  const items   = card.querySelector('.soc-items');
+  const chevron = card.querySelector('.soc-chevron');
+  if (!items) return;
+  const open = items.classList.toggle('open');
+  if (chevron) chevron.textContent = open ? '▲' : '▼';
+};
 
 // ── toggle item checked in Firestore ──
 window.toggleItem = async function(orderId, itemIdx, el) {
@@ -1507,7 +1541,7 @@ window.completeOrder = async function(orderId) {
   }
   try {
     const { doc, updateDoc } = window._fb;
-    await updateDoc(doc(window._db,'orders',orderId), { status:'complete' });
+    await updateDoc(doc(window._db,'orders',orderId), { status:'complete', completedAt: new Date().toISOString() });
     showToast('🎉 Order complete — great shopping, Erik!');
   } catch(err) {
     showToast('Error completing order — check connection');
