@@ -288,6 +288,11 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 .opi-brand{font-size:11px;color:var(--ink-lt);}
 .opi-stars{font-size:10px;color:var(--tan);margin-top:1px;}
 .opi-qty{background:var(--rust);color:white;border-radius:8px;padding:4px 9px;font-size:13px;font-weight:700;white-space:nowrap;}
+.opi-qty-ctrl{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.qty-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--warm-mid);background:var(--parchment);color:var(--ink);font-size:17px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
+.qty-val{min-width:20px;text-align:center;font-size:14px;font-weight:700;color:var(--rust);}
+.opi-del{background:none;border:none;font-size:13px;cursor:pointer;color:var(--ink-lt);padding:2px;opacity:.5;flex-shrink:0;line-height:1;}
+.opi-del:active{opacity:1;}
 
 /* ── SAVED ORDER CARDS ── */
 .soc{
@@ -347,6 +352,12 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 .si-sub{font-size:11px;color:var(--ink-lt);}
 .si-qty{background:var(--parchment);color:var(--ink-mid);border-radius:7px;padding:4px 9px;font-size:13px;font-weight:700;border:1px solid var(--warm-mid);transition:all .2s;}
 .shop-item.done .si-qty{background:var(--green-lt);border-color:var(--green-bd);color:var(--green);}
+.si-oos-btn{background:none;border:1.5px solid var(--warm-mid);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:500;cursor:pointer;color:var(--ink-lt);font-family:'DM Sans',sans-serif;white-space:nowrap;flex-shrink:0;transition:all .2s;}
+.si-oos-btn.active{background:#FFF0ED;border-color:var(--rust);color:var(--rust);}
+.shop-item.oos{opacity:.7;}
+.shop-item.oos .si-name{text-decoration:line-through;color:var(--ink-lt);}
+.shop-item.oos .si-qty{opacity:.4;}
+input[type=date]{-webkit-appearance:none;appearance:none;}
 
 .no-order-state{text-align:center;padding:42px 20px;color:var(--ink-lt);}
 .no-order-state .noi{font-size:50px;margin-bottom:12px;}
@@ -1163,11 +1174,15 @@ window.buildOrder = function() {
   document.getElementById('orderSummaryCard').style.display = '';
   document.getElementById('sendOrderBtn').style.display     = '';
 
-  // Render preview items
-  document.getElementById('orderPreviewList').innerHTML = orderItems.map(f => {
+  renderOrderPreview();
+  showToast(`Built: ${orderItems.length} varieties across ${days} cans ✅`);
+};
+
+function renderOrderPreview() {
+  document.getElementById('orderPreviewList').innerHTML = orderItems.map((f, idx) => {
     const icon   = proteinIcon[f.protein] || '🥫';
     const filled = Math.round(f.score);
-    const stars  = '★'.repeat(filled) + '☆'.repeat(4-filled);
+    const stars  = '★'.repeat(filled) + '☆'.repeat(Math.max(0, 4 - filled));
     return `<div class="opi">
       <div class="opi-icon">${icon}</div>
       <div class="opi-info">
@@ -1175,11 +1190,35 @@ window.buildOrder = function() {
         <div class="opi-brand">${esc(f.brand)} · ${esc(f.type||'')}</div>
         <div class="opi-stars">${stars} avg</div>
       </div>
-      <div class="opi-qty">×${f.cans}</div>
+      <div class="opi-qty-ctrl">
+        <button class="qty-btn" onclick="adjQty(${idx},-1)">−</button>
+        <span class="qty-val">${f.cans}</span>
+        <button class="qty-btn" onclick="adjQty(${idx},1)">+</button>
+      </div>
+      <button class="opi-del" onclick="removeOrderItem(${idx})" title="Remove">✕</button>
     </div>`;
   }).join('');
+  const total = orderItems.reduce((s, it) => s + it.cans, 0);
+  document.getElementById('oSumCans').textContent = total;
+  document.getElementById('oSumVar').textContent  = orderItems.length;
+  document.getElementById('oSumMin').textContent  = orderItems.length ? Math.min(...orderItems.map(o=>o.cans)) : 0;
+}
 
-  showToast(`Built: ${orderItems.length} varieties across ${days} cans ✅`);
+window.adjQty = function(idx, delta) {
+  if (!orderItems[idx]) return;
+  orderItems[idx].cans = Math.max(1, orderItems[idx].cans + delta);
+  renderOrderPreview();
+};
+
+window.removeOrderItem = function(idx) {
+  orderItems.splice(idx, 1);
+  if (!orderItems.length) {
+    document.getElementById('orderSummaryCard').style.display = 'none';
+    document.getElementById('sendOrderBtn').style.display     = 'none';
+    document.getElementById('orderPreviewList').innerHTML     = '';
+    return;
+  }
+  renderOrderPreview();
 };
 
 // ═══════════════════════════════════════════════
@@ -1217,7 +1256,8 @@ window.saveOrder = async function() {
         photoURL: f.photoURL||null,
         cans:     f.cans,
         score:    f.score,
-        checked:  false
+        checked:     false,
+        outOfStock:  false
       }))
     });
 
@@ -1287,6 +1327,7 @@ function renderShoppingTab(orders) {
 
   const items      = active.items || [];
   const checked    = items.filter(it=>it.checked).length;
+  const oosCount   = items.filter(it=>it.outOfStock).length;
   const pct        = items.length ? Math.round(checked/items.length*100) : 0;
   const fl         = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
@@ -1302,7 +1343,12 @@ function renderShoppingTab(orders) {
     .map(([brand, brandItems]) => {
       const rows = brandItems.map(it => {
         const icon = proteinIcon[it.protein]||'🥫';
-        const cls  = it.checked ? 'shop-item done' : 'shop-item';
+        const oos  = it.outOfStock || false;
+        const cls  = [
+          'shop-item',
+          it.checked ? 'done' : '',
+          oos        ? 'oos'  : ''
+        ].filter(Boolean).join(' ');
         return `<div class="${cls}" onclick="toggleItem('${active.id}',${it._idx},this)">
           <div class="si-check">✓</div>
           <div class="si-icon">${icon}</div>
@@ -1311,6 +1357,7 @@ function renderShoppingTab(orders) {
             <div class="si-sub">${esc(it.type||'')} · ${it.cans} cans needed</div>
           </div>
           <div class="si-qty">×${it.cans}</div>
+          <button class="si-oos-btn${oos?' active':''}" onclick="event.stopPropagation();toggleOOS('${active.id}',${it._idx},this)">${oos?'Out of stock':'OOS?'}</button>
         </div>`;
       }).join('');
       return `<div class="brand-group">
@@ -1325,7 +1372,7 @@ function renderShoppingTab(orders) {
       <div class="ab-title">${esc(active.name)}</div>
       <div class="ab-meta">${fl(active.dateFrom)} – ${fl(active.dateTo)} · ${active.days} cans total</div>
       <div class="ab-prog"><div class="ab-fill" style="width:${pct}%"></div></div>
-      <div class="ab-count">${checked} of ${items.length} varieties found</div>
+      <div class="ab-count">${checked} of ${items.length} found${oosCount > 0 ? ` · ${oosCount} out of stock` : ''}</div>
     </div>
     ${brandHTML}
     <button class="btn-p green" onclick="completeOrder('${active.id}')">🎉 Mark Order Complete</button>
@@ -1366,9 +1413,34 @@ window.toggleItem = async function(orderId, itemIdx, el) {
   }
 };
 
+// ── toggle item out-of-stock in Firestore ──
+window.toggleOOS = async function(orderId, itemIdx, btn) {
+  const isOOS = btn.classList.contains('active');
+  const newOOS = !isOOS;
+  btn.classList.toggle('active', newOOS);
+  btn.textContent = newOOS ? 'Out of stock' : 'OOS?';
+  const row = btn.closest('.shop-item');
+  if (row) row.classList.toggle('oos', newOOS);
+  try {
+    const { doc, getDoc, updateDoc } = window._fb;
+    const ref  = doc(window._db,'orders',orderId);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) return;
+    const items = [...snap.data().items];
+    items[itemIdx] = { ...items[itemIdx], outOfStock:newOOS };
+    await updateDoc(ref, { items });
+  } catch(err) {
+    console.error('Toggle OOS:', err);
+    btn.classList.toggle('active', isOOS);
+    btn.textContent = isOOS ? 'Out of stock' : 'OOS?';
+    if (row) row.classList.toggle('oos', isOOS);
+    showToast('Couldn\'t save — check connection');
+  }
+};
+
 // ── mark order complete ──
 window.completeOrder = async function(orderId) {
-  const unchecked = document.querySelectorAll('#activeShopSection .shop-item:not(.done)').length;
+  const unchecked = document.querySelectorAll('#activeShopSection .shop-item:not(.done):not(.oos)').length;
   if (unchecked > 0) {
     showToast(`${unchecked} item${unchecked>1?'s':''} still need checking off!`);
     return;
