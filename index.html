@@ -1476,6 +1476,7 @@ function renderPastOrders(orders) {
     const oi             = getOrderItems(o);
     const checked        = oi.filter(it=>it.checked).length;
     const total          = oi.length;
+    const totalCans      = oi.reduce((s, it) => s + (it.cans || 0), 0);
     const completedStr   = formatTs(o.completedAt);
     const completedDate  = completedStr ? ` · Shopped ${completedStr}` : '';
     const canEdit        = o.status === 'active' && !oi.some(it=>it.checked);
@@ -1490,7 +1491,7 @@ function renderPastOrders(orders) {
           <span class="soc-chevron">▼</span>
         </div>
       </div>
-      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${checked}/${total} checked${completedDate}</div>
+      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${totalCans} cans · ${checked}/${total} checked${completedDate}</div>
       ${canEdit ? `<button class="btn-order-edit" onclick="event.stopPropagation();editOrder('${o.id}')">✏️ Edit Order</button>` : ''}
       <div class="soc-items">${itemsHTML||'<p style="font-size:12px;color:var(--ink-lt);">No items</p>'}</div>
     </div>`;
@@ -1516,11 +1517,18 @@ function renderShoppingTab(orders) {
     return;
   }
 
+  // Preserve which order cards are currently open before re-render
+  const openIds = new Set(
+    [...document.querySelectorAll('.aoc-body.open')]
+      .map(el => el.id.replace('aoc-body-', ''))
+  );
+
   sec.innerHTML = activeOrders.map(active => {
-    const items    = getOrderItems(active);
-    const checked  = items.filter(it=>it.checked).length;
-    const oosCount = items.filter(it=>it.outOfStock).length;
-    const pct      = items.length ? Math.round(checked/items.length*100) : 0;
+    const items     = getOrderItems(active);
+    const checked   = items.filter(it=>it.checked).length;
+    const oosCount  = items.filter(it=>it.outOfStock).length;
+    const totalCans = items.reduce((s, it) => s + (it.cans || 0), 0);
+    const pct       = items.length ? Math.round(checked/items.length*100) : 0;
 
     // Group by brand
     const byBrand = {};
@@ -1561,7 +1569,7 @@ function renderShoppingTab(orders) {
       <div class="aoc-hdr" onclick="toggleActiveOrder('${active.id}')">
         <div>
           <div class="aoc-title">${esc(active.name)}</div>
-          <div class="aoc-meta">${fl(active.dateFrom)} – ${fl(active.dateTo)} · ${active.days} cans · ${checked}/${items.length} found${oosCount>0?` · ${oosCount} OOS`:''}</div>
+          <div class="aoc-meta">${fl(active.dateFrom)} – ${fl(active.dateTo)} · ${totalCans} cans · ${checked}/${items.length} found${oosCount>0?` · ${oosCount} OOS`:''}</div>
         </div>
         <div class="aoc-right">
           <div class="aoc-prog-wrap"><div class="aoc-prog-fill" style="width:${pct}%"></div></div>
@@ -1575,6 +1583,14 @@ function renderShoppingTab(orders) {
       </div>
     </div>`;
   }).join('');
+
+  // Restore open state for any cards that were expanded before re-render
+  openIds.forEach(id => {
+    const body = document.getElementById('aoc-body-'+id);
+    const chev = document.getElementById('aoc-chev-'+id);
+    if (body) { body.classList.add('open'); }
+    if (chev)  { chev.classList.add('open'); }
+  });
 
   renderCompletedOrders(done);
 }
@@ -1593,6 +1609,7 @@ function renderCompletedOrders(done) {
   const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
   el.innerHTML = done.map(o => {
     const oi            = getOrderItems(o);
+    const totalCans     = oi.reduce((s, it) => s + (it.cans || 0), 0);
     const completedStr  = formatTs(o.completedAt);
     const completedDate = completedStr ? ` · Shopped ${completedStr}` : '';
     const itemsHTML = oi.map(it =>
@@ -1606,7 +1623,7 @@ function renderCompletedOrders(done) {
           <span class="soc-chevron">▼</span>
         </div>
       </div>
-      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${oi.length} varieties${completedDate}</div>
+      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${totalCans} cans · ${oi.length} varieties${completedDate}</div>
       <div class="soc-items">${itemsHTML||'<p style="font-size:12px;color:var(--ink-lt);">No items recorded</p>'}</div>
     </div>`;
   }).join('');
