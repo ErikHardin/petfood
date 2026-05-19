@@ -1565,11 +1565,13 @@ window.toggleItem = async function(orderId, itemIdx, el) {
   const isChecked = el.classList.contains('done');
   pendingShopWrites++;
   try {
+    const order = allOrders.find(o => o.id === orderId);
+    if (!order) throw new Error('Order not found');
+    const items = getOrderItems(order).map((it, i) =>
+      i === itemIdx ? { ...it, checked: isChecked } : it
+    );
     const { doc, updateDoc } = window._fb;
-    await updateDoc(doc(window._db,'orders',orderId), {
-      [`items.${itemIdx}.checked`]: isChecked,
-      status: 'shopping'
-    });
+    await updateDoc(doc(window._db,'orders',orderId), { items, status: 'shopping' });
   } catch(err) {
     console.error('Toggle item:', err);
     el.classList.toggle('done'); // revert
@@ -1593,10 +1595,13 @@ window.toggleOOS = async function(orderId, itemIdx, btn) {
   if (row) row.classList.toggle('oos', newOOS);
   pendingShopWrites++;
   try {
+    const order = allOrders.find(o => o.id === orderId);
+    if (!order) throw new Error('Order not found');
+    const items = getOrderItems(order).map((it, i) =>
+      i === itemIdx ? { ...it, outOfStock: newOOS } : it
+    );
     const { doc, updateDoc } = window._fb;
-    await updateDoc(doc(window._db,'orders',orderId), {
-      [`items.${itemIdx}.outOfStock`]: newOOS
-    });
+    await updateDoc(doc(window._db,'orders',orderId), { items });
   } catch(err) {
     console.error('Toggle OOS:', err);
     btn.classList.toggle('active', isOOS);
