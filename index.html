@@ -954,8 +954,8 @@ whenFB(() => {
   document.getElementById('liveDot').classList.add('live');
 
   // Load cat photos from Firebase Storage (upload files named "Seb" and "Butters")
-  getDownloadURL(sRef(window._stor, 'Seb')).then(u => { window._catPhotos.seb = u; updateCatAvatars(); }).catch(() => {});
-  getDownloadURL(sRef(window._stor, 'Butters')).then(u => { window._catPhotos.but = u; updateCatAvatars(); }).catch(() => {});
+  getDownloadURL(sRef(window._stor, 'Seb.jpg')).then(u => { window._catPhotos.seb = u; updateCatAvatars(); }).catch(() => {});
+  getDownloadURL(sRef(window._stor, 'Butters.jpg')).then(u => { window._catPhotos.but = u; updateCatAvatars(); }).catch(() => {});
 
   // Foods — live
   onSnapshot(
