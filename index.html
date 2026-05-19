@@ -708,6 +708,8 @@ let journalFilter = 'all';
 let minRating     = 3;
 let orderItems    = [];
 let currentFile   = null;
+let pendingShopWrites = 0;
+let _pendingOrders    = null;
 
 // ═══════════════════════════════════════════════
 //  PIN LOCK
@@ -974,7 +976,11 @@ whenFB(() => {
     snap => {
       const orders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
       renderPastOrders(orders);
-      renderShoppingTab(orders);
+      if (pendingShopWrites === 0) {
+        renderShoppingTab(orders);
+      } else {
+        _pendingOrders = orders;
+      }
       updateShopBadge(orders);
     },
     err => console.error('Orders listener:', err)
@@ -1443,18 +1449,23 @@ function renderCompletedOrders(done) {
 window.toggleItem = async function(orderId, itemIdx, el) {
   el.classList.toggle('done');
   const isChecked = el.classList.contains('done');
+  pendingShopWrites++;
   try {
-    const { doc, getDoc, updateDoc } = window._fb;
-    const ref  = doc(window._db,'orders',orderId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-    const items = [...snap.data().items];
-    items[itemIdx] = { ...items[itemIdx], checked:isChecked };
-    await updateDoc(ref, { items, status:'shopping' });
+    const { doc, updateDoc } = window._fb;
+    await updateDoc(doc(window._db,'orders',orderId), {
+      [`items.${itemIdx}.checked`]: isChecked,
+      status: 'shopping'
+    });
   } catch(err) {
     console.error('Toggle item:', err);
     el.classList.toggle('done'); // revert
     showToast('Couldn\'t save — check connection');
+  } finally {
+    pendingShopWrites--;
+    if (pendingShopWrites === 0 && _pendingOrders) {
+      renderShoppingTab(_pendingOrders);
+      _pendingOrders = null;
+    }
   }
 };
 
@@ -1466,20 +1477,24 @@ window.toggleOOS = async function(orderId, itemIdx, btn) {
   btn.textContent = newOOS ? 'Out of stock' : 'OOS?';
   const row = btn.closest('.shop-item');
   if (row) row.classList.toggle('oos', newOOS);
+  pendingShopWrites++;
   try {
-    const { doc, getDoc, updateDoc } = window._fb;
-    const ref  = doc(window._db,'orders',orderId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) return;
-    const items = [...snap.data().items];
-    items[itemIdx] = { ...items[itemIdx], outOfStock:newOOS };
-    await updateDoc(ref, { items });
+    const { doc, updateDoc } = window._fb;
+    await updateDoc(doc(window._db,'orders',orderId), {
+      [`items.${itemIdx}.outOfStock`]: newOOS
+    });
   } catch(err) {
     console.error('Toggle OOS:', err);
     btn.classList.toggle('active', isOOS);
     btn.textContent = isOOS ? 'Out of stock' : 'OOS?';
     if (row) row.classList.toggle('oos', isOOS);
     showToast('Couldn\'t save — check connection');
+  } finally {
+    pendingShopWrites--;
+    if (pendingShopWrites === 0 && _pendingOrders) {
+      renderShoppingTab(_pendingOrders);
+      _pendingOrders = null;
+    }
   }
 };
 
