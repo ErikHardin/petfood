@@ -178,6 +178,9 @@ main::-webkit-scrollbar{width:0;}
 .cat-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;border:2px solid rgba(255,255,255,.8);box-shadow:0 2px 8px rgba(0,0,0,.1);}
 .cat-avatar.seb{background:radial-gradient(circle,#f8f6f4 60%,#e8e0d8);}
 .cat-avatar.but{background:radial-gradient(circle,#f4a256 60%,#c87432);}
+.cat-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.chip-cat-photo{width:16px;height:16px;border-radius:50%;object-fit:cover;vertical-align:middle;}
+.badge-cat-photo{width:14px;height:14px;border-radius:50%;object-fit:cover;vertical-align:middle;}
 .cat-name{font-family:'Playfair Display',serif;font-size:15px;line-height:1;}
 .cat-name.seb{color:var(--seb);}
 .cat-name.but{color:var(--rust);}
@@ -283,6 +286,8 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
   border:1.5px solid var(--warm-mid);margin-bottom:7px;
 }
 .opi-icon{font-size:20px;flex-shrink:0;}
+.opi-thumb{width:38px;height:38px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--parchment);}
+.opi-thumb img{width:100%;height:100%;object-fit:cover;}
 .opi-info{flex:1;min-width:0;}
 .opi-name{font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .opi-brand{font-size:11px;color:var(--ink-lt);}
@@ -347,6 +352,8 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 }
 .shop-item.done .si-check{background:var(--green);border-color:var(--green);color:white;}
 .si-icon{font-size:20px;flex-shrink:0;}
+.si-thumb{width:36px;height:36px;border-radius:8px;overflow:hidden;flex-shrink:0;background:var(--parchment);}
+.si-thumb img{width:100%;height:100%;object-fit:cover;}
 .si-info{flex:1;min-width:0;}
 .si-name{font-size:14px;font-weight:500;color:var(--ink);transition:color .2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .si-sub{font-size:11px;color:var(--ink-lt);}
@@ -542,7 +549,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
       <div class="cats-section">
         <div class="cat-card seb">
           <div class="cat-header">
-            <div class="cat-avatar seb">🤍</div>
+            <div class="cat-avatar seb" id="sebAvatar">🤍</div>
             <div>
               <div class="cat-name seb">Sebastian</div>
               <div class="cat-desc">All white boy · Very particular</div>
@@ -564,7 +571,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
         </div>
         <div class="cat-card but">
           <div class="cat-header">
-            <div class="cat-avatar but">🧡</div>
+            <div class="cat-avatar but" id="butAvatar">🧡</div>
             <div>
               <div class="cat-name but">Butters</div>
               <div class="cat-desc">Orange girl · Enthusiastic eater</div>
@@ -597,8 +604,8 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
     <div class="filter-row" id="journalFilters">
       <button class="chip on" onclick="setJournalFilter(this,'all')">All</button>
       <button class="chip"    onclick="setJournalFilter(this,'both')">🐾 Both Love</button>
-      <button class="chip"    onclick="setJournalFilter(this,'seb')">🤍 Sebastian</button>
-      <button class="chip"    onclick="setJournalFilter(this,'but')">🧡 Butters</button>
+      <button class="chip" id="sebFilterChip" onclick="setJournalFilter(this,'seb')">🤍 Sebastian</button>
+      <button class="chip" id="butFilterChip" onclick="setJournalFilter(this,'but')">🧡 Butters</button>
     </div>
     <div class="streak-row">
       <div class="streak-card seb"><div class="streak-num seb" id="sebCount">—</div><div class="streak-lbl">Seb Approved</div></div>
@@ -828,11 +835,15 @@ window.openRateModal = function(foodId) {
     }).join('');
   }
 
+  const mp = window._catPhotos || {};
+  const mSebAv = mp.seb ? `<img src="${mp.seb}" alt="Sebastian">` : '🤍';
+  const mButAv = mp.but ? `<img src="${mp.but}" alt="Butters">` : '🧡';
+
   document.getElementById('rateModalBody').innerHTML = `
     <div class="cats-section">
       <div class="cat-card seb" style="margin-bottom:12px;">
         <div class="cat-header">
-          <div class="cat-avatar seb">🤍</div>
+          <div class="cat-avatar seb">${mSebAv}</div>
           <div><div class="cat-name seb">Sebastian</div></div>
         </div>
         <div class="toggle-row">
@@ -846,7 +857,7 @@ window.openRateModal = function(foodId) {
       </div>
       <div class="cat-card but">
         <div class="cat-header">
-          <div class="cat-avatar but">🧡</div>
+          <div class="cat-avatar but">${mButAv}</div>
           <div><div class="cat-name but">Butters</div></div>
         </div>
         <div class="toggle-row">
@@ -914,13 +925,37 @@ function whenFB(fn) {
   document.addEventListener('fb-ready', fn, { once:true });
 }
 
+// ── Cat avatar photos ─────────────────────────
+window._catPhotos = { seb: null, but: null };
+
+function updateCatAvatars() {
+  const p = window._catPhotos;
+  const sebAv = document.getElementById('sebAvatar');
+  if (sebAv) sebAv.innerHTML = p.seb ? `<img src="${p.seb}" alt="Sebastian">` : '🤍';
+  const butAv = document.getElementById('butAvatar');
+  if (butAv) butAv.innerHTML = p.but ? `<img src="${p.but}" alt="Butters">` : '🧡';
+  const sebChip = document.getElementById('sebFilterChip');
+  if (sebChip) sebChip.innerHTML = p.seb
+    ? `<img class="chip-cat-photo" src="${p.seb}" alt=""> Sebastian`
+    : '🤍 Sebastian';
+  const butChip = document.getElementById('butFilterChip');
+  if (butChip) butChip.innerHTML = p.but
+    ? `<img class="chip-cat-photo" src="${p.but}" alt=""> Butters`
+    : '🧡 Butters';
+  renderJournal();
+}
+
 // ── Firebase live ──────────────────────────────
 whenFB(() => {
-  const { collection, query, orderBy, onSnapshot } = window._fb;
+  const { collection, query, orderBy, onSnapshot, sRef, getDownloadURL } = window._fb;
   const db = window._db;
 
   // Signal connection
   document.getElementById('liveDot').classList.add('live');
+
+  // Load cat photos from Firebase Storage (upload files named "Seb" and "Butters")
+  getDownloadURL(sRef(window._stor, 'Seb')).then(u => { window._catPhotos.seb = u; updateCatAvatars(); }).catch(() => {});
+  getDownloadURL(sRef(window._stor, 'Butters')).then(u => { window._catPhotos.but = u; updateCatAvatars(); }).catch(() => {});
 
   // Foods — live
   onSnapshot(
@@ -1066,6 +1101,10 @@ function renderJournal() {
     return;
   }
 
+  const p = window._catPhotos || {};
+  const sebIcon = p.seb ? `<img class="badge-cat-photo" src="${p.seb}" alt="">` : '🤍';
+  const butIcon = p.but ? `<img class="badge-cat-photo" src="${p.but}" alt="">` : '🧡';
+
   list.innerHTML = foods.map(f => {
     const icon  = proteinIcon[f.protein] || '🥫';
     const thumb = f.photoURL
@@ -1073,14 +1112,14 @@ function renderJournal() {
       : `<div class="food-thumb">${icon}</div>`;
     const sebBadge = f.sebTried
       ? (f.sebRating > 0
-          ? `<span class="cat-badge seb">🤍 ${ratingEmoji[f.sebRating]} ${ratingLabel[f.sebRating]}</span>`
-          : `<span class="cat-badge rate-later">🤍 Rate later</span>`)
-      : `<span class="cat-badge no">🤍 Not tried</span>`;
+          ? `<span class="cat-badge seb">${sebIcon} ${ratingEmoji[f.sebRating]} ${ratingLabel[f.sebRating]}</span>`
+          : `<span class="cat-badge rate-later">${sebIcon} Rate later</span>`)
+      : `<span class="cat-badge no">${sebIcon} Not tried</span>`;
     const butBadge = f.butTried
       ? (f.butRating > 0
-          ? `<span class="cat-badge but">🧡 ${ratingEmoji[f.butRating]} ${ratingLabel[f.butRating]}</span>`
-          : `<span class="cat-badge rate-later">🧡 Rate later</span>`)
-      : `<span class="cat-badge no">🧡 Not tried</span>`;
+          ? `<span class="cat-badge but">${butIcon} ${ratingEmoji[f.butRating]} ${ratingLabel[f.butRating]}</span>`
+          : `<span class="cat-badge rate-later">${butIcon} Rate later</span>`)
+      : `<span class="cat-badge no">${butIcon} Not tried</span>`;
     return `<div class="food-item" onclick="openRateModal('${esc(f.id)}')">
       ${thumb}
       <div class="food-info">
@@ -1183,8 +1222,11 @@ function renderOrderPreview() {
     const icon   = proteinIcon[f.protein] || '🥫';
     const filled = Math.round(f.score);
     const stars  = '★'.repeat(filled) + '☆'.repeat(Math.max(0, 4 - filled));
+    const thumbEl = f.photoURL
+      ? `<div class="opi-thumb"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
+      : `<div class="opi-icon">${icon}</div>`;
     return `<div class="opi">
-      <div class="opi-icon">${icon}</div>
+      ${thumbEl}
       <div class="opi-info">
         <div class="opi-name">${esc(f.flavor)}</div>
         <div class="opi-brand">${esc(f.brand)} · ${esc(f.type||'')}</div>
@@ -1349,9 +1391,12 @@ function renderShoppingTab(orders) {
           it.checked ? 'done' : '',
           oos        ? 'oos'  : ''
         ].filter(Boolean).join(' ');
+        const siThumb = it.photoURL
+          ? `<div class="si-thumb"><img src="${esc(it.photoURL)}" alt="" loading="lazy"></div>`
+          : `<div class="si-icon">${icon}</div>`;
         return `<div class="${cls}" onclick="toggleItem('${active.id}',${it._idx},this)">
           <div class="si-check">✓</div>
-          <div class="si-icon">${icon}</div>
+          ${siThumb}
           <div class="si-info">
             <div class="si-name">${esc(it.flavor)}</div>
             <div class="si-sub">${esc(it.type||'')} · ${it.cans} cans needed</div>
