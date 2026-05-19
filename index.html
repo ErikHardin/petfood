@@ -1213,12 +1213,16 @@ window.buildOrder = function() {
   );
   const list = eligible.length > 0 ? eligible : allFoods;
 
-  // Score & initial floor allocation (unrated foods default to neutral score of 2)
-  const scored     = list.map(f => ({ ...f, score:((f.sebRating||2)+(f.butRating||2))/2 }));
+  // Score & cap varieties so we never have more varieties than cans
+  const scored = list
+    .map(f => ({ ...f, score:((f.sebRating||2)+(f.butRating||2))/2 }))
+    .sort((a,b) => b.score - a.score)
+    .slice(0, days);
+
   const totalScore = scored.reduce((s,f) => s+f.score, 0);
-  let   alloc      = scored.map(f => ({
+  let alloc = scored.map(f => ({
     ...f,
-    cans: Math.max(2, Math.floor((f.score/totalScore)*days))
+    cans: Math.max(1, Math.floor((f.score/totalScore)*days))
   }));
 
   // Trim or pad to exactly 'days' cans, highest-frac first
@@ -1231,9 +1235,9 @@ window.buildOrder = function() {
   while (total < days) { withFrac[i%withFrac.length].cans++; total++; i++; }
   while (total > days) {
     const idx = i%withFrac.length;
-    if (withFrac[idx].cans > 2) { withFrac[idx].cans--; total--; }
+    if (withFrac[idx].cans > 1) { withFrac[idx].cans--; total--; }
     i++;
-    if (i > days*2) break; // safety
+    if (i > days*2) break;
   }
 
   orderItems = withFrac.sort((a,b) => b.cans - a.cans);
