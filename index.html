@@ -999,14 +999,18 @@ whenFB(() => {
   onSnapshot(
     query(collection(db,'orders'), orderBy('createdAt','desc')),
     snap => {
-      allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-      renderPastOrders(allOrders);
-      if (pendingShopWrites === 0) {
-        renderShoppingTab(allOrders);
-      } else {
-        _pendingOrders = allOrders;
+      try {
+        allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+        renderPastOrders(allOrders);
+        if (pendingShopWrites === 0) {
+          renderShoppingTab(allOrders);
+        } else {
+          _pendingOrders = allOrders;
+        }
+        updateShopBadge(allOrders);
+      } catch(e) {
+        console.error('Orders render error:', e);
       }
-      updateShopBadge(allOrders);
     },
     err => console.error('Orders listener:', err)
   );
@@ -1305,7 +1309,7 @@ window.editOrder = function(orderId) {
   const order = allOrders.find(o => o.id === orderId);
   if (!order) { showToast('Order not found'); return; }
 
-  orderItems = (order.items || []).map(it => ({
+  orderItems = getOrderItems(order).map(it => ({
     id:       it.foodId,
     brand:    it.brand,
     flavor:   it.flavor,
@@ -1420,12 +1424,13 @@ function renderPastOrders(orders) {
   const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
   el.innerHTML = orders.map(o => {
-    const checked        = (o.items||[]).filter(it=>it.checked).length;
-    const total          = (o.items||[]).length;
+    const oi             = getOrderItems(o);
+    const checked        = oi.filter(it=>it.checked).length;
+    const total          = oi.length;
     const completedStr   = formatTs(o.completedAt);
     const completedDate  = completedStr ? ` · Shopped ${completedStr}` : '';
-    const canEdit        = o.status === 'active' && !(o.items||[]).some(it=>it.checked);
-    const itemsHTML      = (o.items||[]).map(it =>
+    const canEdit        = o.status === 'active' && !oi.some(it=>it.checked);
+    const itemsHTML      = oi.map(it =>
       `<div class="soc-item-row">${proteinIcon[it.protein]||'🥫'} ${esc(it.flavor)} ×${it.cans}${it.outOfStock?' (OOS)':it.checked?' ✓':''}</div>`
     ).join('');
     return `<div class="soc" onclick="toggleOrderExpand(this)">
@@ -1461,7 +1466,7 @@ function renderShoppingTab(orders) {
     return;
   }
 
-  const items      = active.items || [];
+  const items      = getOrderItems(active);
   const checked    = items.filter(it=>it.checked).length;
   const oosCount   = items.filter(it=>it.outOfStock).length;
   const pct        = items.length ? Math.round(checked/items.length*100) : 0;
@@ -1527,9 +1532,10 @@ function renderCompletedOrders(done) {
   if (!done.length) { el.innerHTML=''; return; }
   const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
   el.innerHTML = done.map(o => {
+    const oi            = getOrderItems(o);
     const completedStr  = formatTs(o.completedAt);
     const completedDate = completedStr ? ` · Shopped ${completedStr}` : '';
-    const itemsHTML = (o.items||[]).map(it =>
+    const itemsHTML = oi.map(it =>
       `<div class="soc-item-row">${proteinIcon[it.protein]||'🥫'} ${esc(it.flavor)} ×${it.cans}${it.outOfStock?' (OOS)':''}</div>`
     ).join('');
     return `<div class="soc" onclick="toggleOrderExpand(this)">
@@ -1540,7 +1546,7 @@ function renderCompletedOrders(done) {
           <span class="soc-chevron">▼</span>
         </div>
       </div>
-      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${(o.items||[]).length} varieties${completedDate}</div>
+      <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${oi.length} varieties${completedDate}</div>
       <div class="soc-items">${itemsHTML||'<p style="font-size:12px;color:var(--ink-lt);">No items recorded</p>'}</div>
     </div>`;
   }).join('');
@@ -1635,6 +1641,16 @@ function updateShopBadge(orders) {
 // ═══════════════════════════════════════════════
 //  UTILITIES
 // ═══════════════════════════════════════════════
+// Firestore dot-notation updates (items.0.checked) convert arrays to maps.
+// Always normalize before using array methods.
+function getOrderItems(o) {
+  const raw = o.items;
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  const keys = Object.keys(raw).map(Number).sort((a, b) => a - b);
+  return keys.map(k => raw[k]);
+}
+
 function formatTs(ts) {
   if (!ts) return null;
   try {
