@@ -393,6 +393,20 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
 .no-order-state .noi{font-size:50px;margin-bottom:12px;}
 .no-order-state p{font-size:14px;line-height:1.6;}
 
+/* ── ACTIVE ORDER CARDS (Shopping tab) ── */
+.aoc{background:var(--card);border-radius:14px;margin-bottom:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07);}
+.aoc-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;gap:8px;}
+.aoc-title{font-weight:700;font-size:15px;color:var(--ink);}
+.aoc-meta{font-size:11px;color:var(--ink-lt);margin-top:2px;}
+.aoc-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.aoc-prog-wrap{width:56px;height:6px;background:var(--warm-mid);border-radius:20px;overflow:hidden;}
+.aoc-prog-fill{height:100%;background:var(--rust);border-radius:20px;transition:width .4s;}
+.aoc-chevron{font-size:11px;color:var(--ink-lt);transition:transform .25s;}
+.aoc-chevron.open{transform:rotate(180deg);}
+.aoc-body{display:none;padding:0 16px 14px;}
+.aoc-body.open{display:block;}
+.aoc-count{font-size:12px;color:var(--ink-lt);margin-bottom:10px;}
+
 /* ── PAGES ── */
 .page{display:none;}
 .page.active{display:block;}
@@ -1301,8 +1315,25 @@ function renderOrderPreview() {
 
 window.adjQty = function(idx, delta) {
   if (!orderItems[idx]) return;
-  orderItems[idx].cans = Math.max(0, orderItems[idx].cans + delta);
-  renderOrderPreview();
+  const newCans = Math.max(0, orderItems[idx].cans + delta);
+  orderItems[idx].cans = newCans;
+
+  // Targeted DOM update — avoid full list re-render which resets scroll position
+  const rows = document.getElementById('orderPreviewList').querySelectorAll('.opi');
+  if (rows[idx]) {
+    const qv = rows[idx].querySelector('.qty-val');
+    if (qv) qv.textContent = newCans;
+    if (newCans === 0) rows[idx].classList.add('opi-zero');
+    else rows[idx].classList.remove('opi-zero');
+  }
+
+  // Update summary stats directly
+  const active = orderItems.filter(it => it.cans > 0);
+  const total  = active.reduce((s, it) => s + it.cans, 0);
+  document.getElementById('oSumTitle').textContent = `${total}-Can Order`;
+  document.getElementById('oSumCans').textContent  = total;
+  document.getElementById('oSumVar').textContent   = active.length;
+  document.getElementById('oSumMin').textContent   = active.length ? Math.min(...active.map(o=>o.cans)) : 0;
 };
 
 window.removeOrderItem = function(idx) {
@@ -1419,7 +1450,6 @@ window.saveOrder = async function() {
     document.getElementById('sendOrderBtn').textContent       = "✅ Send to Erik's Shopping List";
     document.getElementById('oName').value = '';
     document.getElementById('editModeNote').style.display = 'none';
-    setTimeout(() => switchPage(wasEditing ? 'order' : 'shop'), 700);
   } catch(err) {
     console.error('Save order:', err);
     showToast('Save failed — check console');
@@ -1471,11 +1501,12 @@ function renderPastOrders(orders) {
 //  SHOPPING TAB — grouped by brand, real-time
 // ═══════════════════════════════════════════════
 function renderShoppingTab(orders) {
-  const active = orders.find(o => o.status==='active' || o.status==='shopping');
-  const done   = orders.filter(o => o.status==='complete');
-  const sec    = document.getElementById('activeShopSection');
+  const activeOrders = orders.filter(o => o.status==='active' || o.status==='shopping');
+  const done         = orders.filter(o => o.status==='complete');
+  const sec          = document.getElementById('activeShopSection');
+  const fl           = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
-  if (!active) {
+  if (!activeOrders.length) {
     sec.innerHTML = `<div class="no-order-state">
       <div class="noi">🛒</div>
       <p>No active order yet.<br>Ask Megan to build one<br>in the <strong>Order</strong> tab!</p>
@@ -1485,66 +1516,76 @@ function renderShoppingTab(orders) {
     return;
   }
 
-  const items      = getOrderItems(active);
-  const checked    = items.filter(it=>it.checked).length;
-  const oosCount   = items.filter(it=>it.outOfStock).length;
-  const pct        = items.length ? Math.round(checked/items.length*100) : 0;
-  const fl         = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  sec.innerHTML = activeOrders.map(active => {
+    const items    = getOrderItems(active);
+    const checked  = items.filter(it=>it.checked).length;
+    const oosCount = items.filter(it=>it.outOfStock).length;
+    const pct      = items.length ? Math.round(checked/items.length*100) : 0;
 
-  // Group by brand
-  const byBrand = {};
-  items.forEach((it,idx) => {
-    const b = it.brand||'Other';
-    (byBrand[b] = byBrand[b]||[]).push({ ...it, _idx:idx });
-  });
+    // Group by brand
+    const byBrand = {};
+    items.forEach((it,idx) => {
+      const b = it.brand||'Other';
+      (byBrand[b] = byBrand[b]||[]).push({ ...it, _idx:idx });
+    });
 
-  const brandHTML = Object.entries(byBrand)
-    .sort(([a],[b]) => a.localeCompare(b))
-    .map(([brand, brandItems]) => {
-      const rows = brandItems.map(it => {
-        const icon = proteinIcon[it.protein]||'🥫';
-        const oos  = it.outOfStock || false;
-        const cls  = [
-          'shop-item',
-          it.checked ? 'done' : '',
-          oos        ? 'oos'  : ''
-        ].filter(Boolean).join(' ');
-        const siThumb = it.photoURL
-          ? `<div class="si-thumb"><img src="${esc(it.photoURL)}" alt="" loading="lazy"></div>`
-          : `<div class="si-icon">${icon}</div>`;
-        return `<div class="${cls}" onclick="toggleItem('${active.id}',${it._idx},this)">
-          <div class="si-check">✓</div>
-          ${siThumb}
-          <div class="si-info">
-            <div class="si-name">${esc(it.flavor)}</div>
-            <div class="si-sub">${esc(it.type||'')} · ${it.cans} cans needed</div>
-          </div>
-          <div class="si-qty">×${it.cans}</div>
-          <button class="si-oos-btn${oos?' active':''}" onclick="event.stopPropagation();toggleOOS('${active.id}',${it._idx},this)">${oos?'Out of stock':'OOS?'}</button>
+    const brandHTML = Object.entries(byBrand)
+      .sort(([a],[b]) => a.localeCompare(b))
+      .map(([brand, brandItems]) => {
+        const rows = brandItems.map(it => {
+          const icon = proteinIcon[it.protein]||'🥫';
+          const oos  = it.outOfStock || false;
+          const cls  = ['shop-item', it.checked?'done':'', oos?'oos':''].filter(Boolean).join(' ');
+          const siThumb = it.photoURL
+            ? `<div class="si-thumb"><img src="${esc(it.photoURL)}" alt="" loading="lazy"></div>`
+            : `<div class="si-icon">${icon}</div>`;
+          return `<div class="${cls}" onclick="toggleItem('${active.id}',${it._idx},this)">
+            <div class="si-check">✓</div>
+            ${siThumb}
+            <div class="si-info">
+              <div class="si-name">${esc(it.flavor)}</div>
+              <div class="si-sub">${esc(it.type||'')} · ${it.cans} cans needed</div>
+            </div>
+            <div class="si-qty">×${it.cans}</div>
+            <button class="si-oos-btn${oos?' active':''}" onclick="event.stopPropagation();toggleOOS('${active.id}',${it._idx},this)">${oos?'Out of stock':'OOS?'}</button>
+          </div>`;
+        }).join('');
+        return `<div class="brand-group">
+          <div class="brand-group-label">${esc(brand)}</div>
+          ${rows}
         </div>`;
       }).join('');
-      return `<div class="brand-group">
-        <div class="brand-group-label">${esc(brand)}</div>
-        ${rows}
-      </div>`;
-    }).join('');
 
-  const noShoppingStarted = !items.some(it => it.checked || it.outOfStock);
-  sec.innerHTML = `
-    <div class="active-banner">
-      <div class="ab-lbl">Active Order from Megan</div>
-      <div class="ab-title">${esc(active.name)}</div>
-      <div class="ab-meta">${fl(active.dateFrom)} – ${fl(active.dateTo)} · ${active.days} cans total</div>
-      <div class="ab-prog"><div class="ab-fill" style="width:${pct}%"></div></div>
-      <div class="ab-count">${checked} of ${items.length} found${oosCount > 0 ? ` · ${oosCount} out of stock` : ''}</div>
-      ${noShoppingStarted ? `<button class="btn-order-edit" style="background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:white;margin-top:10px;" onclick="editOrder('${active.id}')">✏️ Edit Order</button>` : ''}
-    </div>
-    ${brandHTML}
-    <button class="btn-p green" onclick="completeOrder('${active.id}')">🎉 Mark Order Complete</button>
-  `;
+    const noShoppingStarted = !items.some(it => it.checked || it.outOfStock);
+    return `<div class="aoc" id="aoc-${active.id}">
+      <div class="aoc-hdr" onclick="toggleActiveOrder('${active.id}')">
+        <div>
+          <div class="aoc-title">${esc(active.name)}</div>
+          <div class="aoc-meta">${fl(active.dateFrom)} – ${fl(active.dateTo)} · ${active.days} cans · ${checked}/${items.length} found${oosCount>0?` · ${oosCount} OOS`:''}</div>
+        </div>
+        <div class="aoc-right">
+          <div class="aoc-prog-wrap"><div class="aoc-prog-fill" style="width:${pct}%"></div></div>
+          <span class="aoc-chevron" id="aoc-chev-${active.id}">▼</span>
+        </div>
+      </div>
+      <div class="aoc-body" id="aoc-body-${active.id}">
+        ${noShoppingStarted ? `<button class="btn-order-edit" style="margin-bottom:12px;" onclick="editOrder('${active.id}')">✏️ Edit Order</button>` : ''}
+        ${brandHTML}
+        <button class="btn-p green" style="margin-top:8px;" onclick="completeOrder('${active.id}')">🎉 Mark Order Complete</button>
+      </div>
+    </div>`;
+  }).join('');
 
   renderCompletedOrders(done);
 }
+
+window.toggleActiveOrder = function(orderId) {
+  const body  = document.getElementById('aoc-body-'+orderId);
+  const chev  = document.getElementById('aoc-chev-'+orderId);
+  if (!body) return;
+  const open = body.classList.toggle('open');
+  if (chev) chev.classList.toggle('open', open);
+};
 
 function renderCompletedOrders(done) {
   const el = document.getElementById('completedOrdersList');
@@ -1640,7 +1681,10 @@ window.toggleOOS = async function(orderId, itemIdx, btn) {
 
 // ── mark order complete ──
 window.completeOrder = async function(orderId) {
-  const unchecked = document.querySelectorAll('#activeShopSection .shop-item:not(.done):not(.oos)').length;
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) { showToast('Order not found'); return; }
+  const items     = getOrderItems(order);
+  const unchecked = items.filter(it => !it.checked && !it.outOfStock).length;
   if (unchecked > 0) {
     showToast(`${unchecked} item${unchecked>1?'s':''} still need checking off!`);
     return;
