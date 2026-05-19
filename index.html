@@ -299,6 +299,8 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 .qty-btn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--warm-mid);background:var(--parchment);color:var(--ink);font-size:17px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
 .qty-val{min-width:20px;text-align:center;font-size:14px;font-weight:700;color:var(--rust);}
 .opi-del{background:none;border:none;font-size:13px;cursor:pointer;color:var(--ink-lt);padding:2px;opacity:.5;flex-shrink:0;line-height:1;}
+.opi-zero{opacity:.5;}
+.opi-zero .opi-name,.opi-zero .qty-val{color:var(--ink-lt);}
 .opi-del:active{opacity:1;}
 
 /* ── SAVED ORDER CARDS ── */
@@ -1217,19 +1219,20 @@ window.buildOrder = function() {
   );
   const list = eligible.length > 0 ? eligible : allFoods;
 
-  // Score & cap varieties so we never have more varieties than cans
+  // Score & sort all eligible foods
   const scored = list
     .map(f => ({ ...f, score:((f.sebRating||2)+(f.butRating||2))/2 }))
-    .sort((a,b) => b.score - a.score)
-    .slice(0, days);
+    .sort((a,b) => b.score - a.score);
 
-  const totalScore = scored.reduce((s,f) => s+f.score, 0);
-  let alloc = scored.map(f => ({
+  // Allocate cans to the top `days` varieties; the rest get 0 so Megan can add them manually
+  const topN       = scored.slice(0, days);
+  const totalScore = topN.reduce((s,f) => s+f.score, 0);
+  let   alloc      = topN.map(f => ({
     ...f,
     cans: Math.max(1, Math.floor((f.score/totalScore)*days))
   }));
 
-  // Trim or pad to exactly 'days' cans, highest-frac first
+  // Trim or pad allocated items to exactly 'days' cans, highest-frac first
   const withFrac = alloc
     .map(a => ({ ...a, frac:(a.score/totalScore)*days - a.cans }))
     .sort((x,y) => y.frac - x.frac);
@@ -1244,31 +1247,34 @@ window.buildOrder = function() {
     if (i > days*2) break;
   }
 
-  orderItems = withFrac.sort((a,b) => b.cans - a.cans);
+  const allocatedSorted = withFrac.sort((a,b) => b.cans - a.cans);
+  const allocatedIds    = new Set(allocatedSorted.map(f => f.id));
 
-  // Update summary
+  // Append remaining foods at 0 cans so they're visible and adjustable
+  const zeroItems = scored
+    .filter(f => !allocatedIds.has(f.id))
+    .map(f => ({ ...f, cans: 0 }));
+
+  orderItems = [...allocatedSorted, ...zeroItems];
+
   const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-  document.getElementById('oSumTitle').textContent = `${days}-Day Order`;
   document.getElementById('oSumSub').textContent   = `${fl(from)} – ${fl(to)} · 1 can/day shared`;
-  document.getElementById('oSumCans').textContent  = days;
-  document.getElementById('oSumVar').textContent   = orderItems.length;
-  document.getElementById('oSumMin').textContent   = Math.min(...orderItems.map(o=>o.cans));
   document.getElementById('orderSummaryCard').style.display = '';
   document.getElementById('sendOrderBtn').style.display     = '';
 
   renderOrderPreview();
-  showToast(`Built: ${orderItems.length} varieties across ${days} cans ✅`);
+  showToast(`Built: ${allocatedSorted.length} varieties · ${days} cans suggested ✅`);
 };
 
 function renderOrderPreview() {
   document.getElementById('orderPreviewList').innerHTML = orderItems.map((f, idx) => {
-    const icon   = proteinIcon[f.protein] || '🥫';
-    const filled = Math.round(f.score);
-    const stars  = '★'.repeat(filled) + '☆'.repeat(Math.max(0, 4 - filled));
+    const icon    = proteinIcon[f.protein] || '🥫';
+    const filled  = Math.round(f.score);
+    const stars   = '★'.repeat(filled) + '☆'.repeat(Math.max(0, 4 - filled));
     const thumbEl = f.photoURL
       ? `<div class="opi-thumb"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
       : `<div class="opi-icon">${icon}</div>`;
-    return `<div class="opi">
+    return `<div class="opi${f.cans === 0 ? ' opi-zero' : ''}">
       ${thumbEl}
       <div class="opi-info">
         <div class="opi-name">${esc(f.flavor)}</div>
@@ -1283,15 +1289,19 @@ function renderOrderPreview() {
       <button class="opi-del" onclick="removeOrderItem(${idx})" title="Remove">✕</button>
     </div>`;
   }).join('');
-  const total = orderItems.reduce((s, it) => s + it.cans, 0);
-  document.getElementById('oSumCans').textContent = total;
-  document.getElementById('oSumVar').textContent  = orderItems.length;
-  document.getElementById('oSumMin').textContent  = orderItems.length ? Math.min(...orderItems.map(o=>o.cans)) : 0;
+
+  // Stats only count items that are actually being ordered (cans > 0)
+  const active = orderItems.filter(it => it.cans > 0);
+  const total  = active.reduce((s, it) => s + it.cans, 0);
+  document.getElementById('oSumTitle').textContent = `${total}-Can Order`;
+  document.getElementById('oSumCans').textContent  = total;
+  document.getElementById('oSumVar').textContent   = active.length;
+  document.getElementById('oSumMin').textContent   = active.length ? Math.min(...active.map(o=>o.cans)) : 0;
 }
 
 window.adjQty = function(idx, delta) {
   if (!orderItems[idx]) return;
-  orderItems[idx].cans = Math.max(1, orderItems[idx].cans + delta);
+  orderItems[idx].cans = Math.max(0, orderItems[idx].cans + delta);
   renderOrderPreview();
 };
 
@@ -1354,7 +1364,7 @@ window.cancelEdit = function() {
 //  SAVE ORDER TO FIRESTORE
 // ═══════════════════════════════════════════════
 window.saveOrder = async function() {
-  if (!orderItems.length)  { showToast('Build the list first 📋'); return; }
+  if (!orderItems.some(f => f.cans > 0)) { showToast('Build the list first 📋'); return; }
   if (!window._db)         { showToast('Firebase not ready yet'); return; }
 
   const from = document.getElementById('oFrom').value;
@@ -1363,10 +1373,11 @@ window.saveOrder = async function() {
   const fl   = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
   const name = document.getElementById('oName').value.trim() || `${fl(from)} Order`;
 
-  const btn = document.getElementById('sendOrderBtn');
+  const btn        = document.getElementById('sendOrderBtn');
+  const wasEditing = editingOrderId;
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  const itemData = orderItems.map(f => ({
+  const itemData = orderItems.filter(f => f.cans > 0).map(f => ({
     foodId:     f.id,
     brand:      f.brand,
     flavor:     f.flavor,
@@ -1378,8 +1389,12 @@ window.saveOrder = async function() {
     checked:    false,
     outOfStock: false
   }));
-
-  const wasEditing = editingOrderId;
+  if (!itemData.length) {
+    showToast('Add at least one item with cans > 0 📋');
+    btn.disabled = false;
+    btn.textContent = wasEditing ? '✅ Update Order' : "✅ Send to Erik's Shopping List";
+    return;
+  }
 
   try {
     if (wasEditing) {
