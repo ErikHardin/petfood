@@ -312,6 +312,19 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 .soc-item-row:last-child{border-bottom:none;}
 .soc-chevron{color:var(--ink-lt);font-size:11px;transition:transform .2s;}
 .soc-items.open~.soc-chevron,.soc.expanded .soc-chevron{transform:rotate(180deg);}
+.btn-order-edit{
+  display:inline-flex;align-items:center;gap:4px;
+  background:var(--parchment);border:1.5px solid var(--warm-mid);
+  border-radius:20px;padding:5px 13px;font-size:11px;font-weight:500;
+  cursor:pointer;color:var(--ink-mid);font-family:'DM Sans',sans-serif;transition:all .2s;margin-top:8px;
+}
+.btn-order-edit:hover{border-color:var(--rust);color:var(--rust);}
+.edit-mode-note{
+  background:var(--amber-lt);border:1.5px solid var(--amber);border-radius:var(--r);
+  padding:9px 13px;margin-bottom:11px;font-size:12px;color:var(--amber);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+.btn-cancel-edit{background:none;border:none;font-size:11px;font-weight:600;color:var(--amber);cursor:pointer;font-family:'DM Sans',sans-serif;padding:0;}
 .soc-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .soc-name{font-family:'Playfair Display',serif;font-size:15px;color:var(--ink);}
 .soc-status{font-size:9px;letter-spacing:1px;text-transform:uppercase;font-weight:500;padding:3px 9px;border-radius:20px;}
@@ -627,6 +640,10 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
   <div class="page" id="page-order">
     <div class="section-title">Create an Order</div>
     <div class="section-sub">Build the list — Erik will shop it. 🛒</div>
+    <div class="edit-mode-note" id="editModeNote" style="display:none;">
+      <span>✏️ Editing: <strong id="editModeName"></strong></span>
+      <button class="btn-cancel-edit" onclick="cancelEdit()">✕ Cancel</button>
+    </div>
 
     <div class="card">
       <div class="card-label">📅 Date range needed</div>
@@ -710,9 +727,11 @@ const ratingEmoji  = ['','😒','😐','😸','🤩'];
 const ratingLabel  = ['','Refused','Meh','Liked','Loved!'];
 
 let allFoods      = [];
+let allOrders     = [];
 let journalFilter = 'all';
 let minRating     = 3;
 let orderItems    = [];
+let editingOrderId = null;
 let currentFile   = null;
 let pendingShopWrites = 0;
 let _pendingOrders    = null;
@@ -980,14 +999,14 @@ whenFB(() => {
   onSnapshot(
     query(collection(db,'orders'), orderBy('createdAt','desc')),
     snap => {
-      const orders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
-      renderPastOrders(orders);
+      allOrders = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      renderPastOrders(allOrders);
       if (pendingShopWrites === 0) {
-        renderShoppingTab(orders);
+        renderShoppingTab(allOrders);
       } else {
-        _pendingOrders = orders;
+        _pendingOrders = allOrders;
       }
-      updateShopBadge(orders);
+      updateShopBadge(allOrders);
     },
     err => console.error('Orders listener:', err)
   );
@@ -1173,6 +1192,9 @@ window.setMinRating = function(val) {
 };
 
 window.buildOrder = function() {
+  editingOrderId = null;
+  document.getElementById('editModeNote').style.display   = 'none';
+  document.getElementById('sendOrderBtn').textContent     = "✅ Send to Erik's Shopping List";
   const from = document.getElementById('oFrom').value;
   const to   = document.getElementById('oTo').value;
   if (!from || !to) { showToast('Pick start and end dates first 📅'); return; }
@@ -1277,6 +1299,50 @@ window.removeOrderItem = function(idx) {
 };
 
 // ═══════════════════════════════════════════════
+//  EDIT / CANCEL ORDER
+// ═══════════════════════════════════════════════
+window.editOrder = function(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) { showToast('Order not found'); return; }
+
+  orderItems = (order.items || []).map(it => ({
+    id:       it.foodId,
+    brand:    it.brand,
+    flavor:   it.flavor,
+    type:     it.type    || '',
+    protein:  it.protein || '',
+    photoURL: it.photoURL || null,
+    cans:     it.cans,
+    score:    it.score   || 3
+  }));
+
+  document.getElementById('oFrom').value = order.dateFrom;
+  document.getElementById('oTo').value   = order.dateTo;
+  document.getElementById('oName').value = order.name;
+  editingOrderId = orderId;
+
+  document.getElementById('editModeNote').style.display = '';
+  document.getElementById('editModeName').textContent   = order.name;
+  document.getElementById('orderSummaryCard').style.display = '';
+  document.getElementById('sendOrderBtn').style.display     = '';
+  document.getElementById('sendOrderBtn').textContent       = '✅ Update Order';
+
+  renderOrderPreview();
+  switchPage('order');
+  showToast(`Editing "${order.name}" — adjust and tap Update`);
+};
+
+window.cancelEdit = function() {
+  editingOrderId = null;
+  orderItems = [];
+  document.getElementById('editModeNote').style.display    = 'none';
+  document.getElementById('orderSummaryCard').style.display = 'none';
+  document.getElementById('orderPreviewList').innerHTML    = '';
+  document.getElementById('sendOrderBtn').style.display    = 'none';
+  document.getElementById('sendOrderBtn').textContent      = "✅ Send to Erik's Shopping List";
+};
+
+// ═══════════════════════════════════════════════
 //  SAVE ORDER TO FIRESTORE
 // ═══════════════════════════════════════════════
 window.saveOrder = async function() {
@@ -1292,43 +1358,51 @@ window.saveOrder = async function() {
   const btn = document.getElementById('sendOrderBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  try {
-    const { collection, addDoc, serverTimestamp } = window._fb;
-    await addDoc(collection(window._db,'orders'), {
-      name,
-      dateFrom:  from,
-      dateTo:    to,
-      days,
-      minRating,
-      status:    'active',
-      createdAt: serverTimestamp(),
-      items: orderItems.map(f => ({
-        foodId:   f.id,
-        brand:    f.brand,
-        flavor:   f.flavor,
-        type:     f.type   || '',
-        protein:  f.protein|| '',
-        photoURL: f.photoURL||null,
-        cans:     f.cans,
-        score:    f.score,
-        checked:     false,
-        outOfStock:  false
-      }))
-    });
+  const itemData = orderItems.map(f => ({
+    foodId:     f.id,
+    brand:      f.brand,
+    flavor:     f.flavor,
+    type:       f.type    || '',
+    protein:    f.protein || '',
+    photoURL:   f.photoURL || null,
+    cans:       f.cans,
+    score:      f.score,
+    checked:    false,
+    outOfStock: false
+  }));
 
-    showToast(`"${name}" sent to Erik's Shopping tab! 🛒`);
-    // reset
+  const wasEditing = editingOrderId;
+
+  try {
+    if (wasEditing) {
+      const { doc, updateDoc } = window._fb;
+      await updateDoc(doc(window._db,'orders',wasEditing), {
+        name, dateFrom: from, dateTo: to, days, minRating, items: itemData
+      });
+      showToast(`"${name}" updated! ✅`);
+    } else {
+      const { collection, addDoc, serverTimestamp } = window._fb;
+      await addDoc(collection(window._db,'orders'), {
+        name, dateFrom: from, dateTo: to, days, minRating,
+        status: 'active', createdAt: serverTimestamp(), items: itemData
+      });
+      showToast(`"${name}" sent to Erik's Shopping tab! 🛒`);
+    }
+    editingOrderId = null;
     orderItems = [];
     document.getElementById('orderSummaryCard').style.display = 'none';
     document.getElementById('orderPreviewList').innerHTML     = '';
     document.getElementById('sendOrderBtn').style.display     = 'none';
+    document.getElementById('sendOrderBtn').textContent       = "✅ Send to Erik's Shopping List";
     document.getElementById('oName').value = '';
-    setTimeout(() => switchPage('shop'), 700);
+    document.getElementById('editModeNote').style.display = 'none';
+    setTimeout(() => switchPage(wasEditing ? 'order' : 'shop'), 700);
   } catch(err) {
     console.error('Save order:', err);
     showToast('Save failed — check console');
   } finally {
-    btn.disabled = false; btn.textContent = '✅ Send to Erik\'s Shopping List';
+    btn.disabled = false;
+    btn.textContent = editingOrderId ? '✅ Update Order' : "✅ Send to Erik's Shopping List";
   }
 };
 
@@ -1346,12 +1420,12 @@ function renderPastOrders(orders) {
   const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
 
   el.innerHTML = orders.map(o => {
-    const checked = (o.items||[]).filter(it=>it.checked).length;
-    const total   = (o.items||[]).length;
-    const completedDate = o.completedAt
-      ? ` · Shopped ${new Date(o.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
-      : '';
-    const itemsHTML = (o.items||[]).map(it =>
+    const checked        = (o.items||[]).filter(it=>it.checked).length;
+    const total          = (o.items||[]).length;
+    const completedStr   = formatTs(o.completedAt);
+    const completedDate  = completedStr ? ` · Shopped ${completedStr}` : '';
+    const canEdit        = o.status === 'active' && !(o.items||[]).some(it=>it.checked);
+    const itemsHTML      = (o.items||[]).map(it =>
       `<div class="soc-item-row">${proteinIcon[it.protein]||'🥫'} ${esc(it.flavor)} ×${it.cans}${it.outOfStock?' (OOS)':it.checked?' ✓':''}</div>`
     ).join('');
     return `<div class="soc" onclick="toggleOrderExpand(this)">
@@ -1363,6 +1437,7 @@ function renderPastOrders(orders) {
         </div>
       </div>
       <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${o.days} cans · ${checked}/${total} checked${completedDate}</div>
+      ${canEdit ? `<button class="btn-order-edit" onclick="event.stopPropagation();editOrder('${o.id}')">✏️ Edit Order</button>` : ''}
       <div class="soc-items">${itemsHTML||'<p style="font-size:12px;color:var(--ink-lt);">No items</p>'}</div>
     </div>`;
   }).join('');
@@ -1430,6 +1505,7 @@ function renderShoppingTab(orders) {
       </div>`;
     }).join('');
 
+  const noShoppingStarted = !items.some(it => it.checked || it.outOfStock);
   sec.innerHTML = `
     <div class="active-banner">
       <div class="ab-lbl">Active Order from Megan</div>
@@ -1437,6 +1513,7 @@ function renderShoppingTab(orders) {
       <div class="ab-meta">${fl(active.dateFrom)} – ${fl(active.dateTo)} · ${active.days} cans total</div>
       <div class="ab-prog"><div class="ab-fill" style="width:${pct}%"></div></div>
       <div class="ab-count">${checked} of ${items.length} found${oosCount > 0 ? ` · ${oosCount} out of stock` : ''}</div>
+      ${noShoppingStarted ? `<button class="btn-order-edit" style="background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4);color:white;margin-top:10px;" onclick="editOrder('${active.id}')">✏️ Edit Order</button>` : ''}
     </div>
     ${brandHTML}
     <button class="btn-p green" onclick="completeOrder('${active.id}')">🎉 Mark Order Complete</button>
@@ -1450,9 +1527,8 @@ function renderCompletedOrders(done) {
   if (!done.length) { el.innerHTML=''; return; }
   const fl = d => new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
   el.innerHTML = done.map(o => {
-    const completedDate = o.completedAt
-      ? ` · Shopped ${new Date(o.completedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}`
-      : '';
+    const completedStr  = formatTs(o.completedAt);
+    const completedDate = completedStr ? ` · Shopped ${completedStr}` : '';
     const itemsHTML = (o.items||[]).map(it =>
       `<div class="soc-item-row">${proteinIcon[it.protein]||'🥫'} ${esc(it.flavor)} ×${it.cans}${it.outOfStock?' (OOS)':''}</div>`
     ).join('');
@@ -1540,8 +1616,8 @@ window.completeOrder = async function(orderId) {
     return;
   }
   try {
-    const { doc, updateDoc } = window._fb;
-    await updateDoc(doc(window._db,'orders',orderId), { status:'complete', completedAt: new Date().toISOString() });
+    const { doc, updateDoc, serverTimestamp } = window._fb;
+    await updateDoc(doc(window._db,'orders',orderId), { status:'complete', completedAt: serverTimestamp() });
     showToast('🎉 Order complete — great shopping, Erik!');
   } catch(err) {
     showToast('Error completing order — check connection');
@@ -1559,6 +1635,14 @@ function updateShopBadge(orders) {
 // ═══════════════════════════════════════════════
 //  UTILITIES
 // ═══════════════════════════════════════════════
+function formatTs(ts) {
+  if (!ts) return null;
+  try {
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  } catch(e) { return null; }
+}
+
 function esc(str) {
   return String(str||'')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
