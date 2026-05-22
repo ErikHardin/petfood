@@ -755,6 +755,9 @@ let _pendingOrders    = null;
 // ═══════════════════════════════════════════════
 //  PIN LOCK
 // ═══════════════════════════════════════════════
+const SESSION_KEY = 'pin_session_ts';
+const SESSION_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days in ms
+
 let pinBuffer     = '';
 let pinMode       = 'check';   // 'check' | 'setup-enter' | 'setup-confirm'
 let pinSetupFirst = '';
@@ -762,6 +765,8 @@ let storedPin     = null;
 
 async function initPin() {
   if (sessionStorage.getItem('unlocked') === 'true') { hidePinScreen(); return; }
+  const lastUnlock = parseInt(localStorage.getItem(SESSION_KEY) || '0', 10);
+  if (lastUnlock && (Date.now() - lastUnlock) < SESSION_TTL) { hidePinScreen(); return; }
   await new Promise(res => whenFB(res));
   try {
     const { doc, getDoc } = window._fb;
@@ -783,6 +788,7 @@ function hidePinScreen() {
 
 window.lockApp = function() {
   sessionStorage.removeItem('unlocked');
+  localStorage.removeItem(SESSION_KEY);
   pinBuffer = '';
   pinMode = storedPin ? 'check' : 'setup-enter';
   updatePinDots();
@@ -826,6 +832,7 @@ window.pinSubmit = function() {
   if (pinMode === 'check') {
     if (entered === storedPin) {
       sessionStorage.setItem('unlocked', 'true');
+      localStorage.setItem(SESSION_KEY, Date.now().toString());
       hidePinScreen();
     } else {
       pinShakeError('Incorrect PIN — try again');
@@ -848,6 +855,7 @@ window.pinSubmit = function() {
       await setDoc(doc(window._db, 'settings', 'app'), { pin: entered }, { merge: true });
       storedPin = entered;
       sessionStorage.setItem('unlocked', 'true');
+      localStorage.setItem(SESSION_KEY, Date.now().toString());
       hidePinScreen();
     })().catch(e => { console.error('PIN save failed', e); pinShakeError('Save failed — check connection'); });
   }
