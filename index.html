@@ -19,7 +19,7 @@
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getFirestore, collection, doc,
            addDoc, updateDoc, setDoc, onSnapshot,
-           query, orderBy, serverTimestamp, getDoc }
+           query, orderBy, serverTimestamp, getDoc, deleteDoc }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
   import { getStorage, ref as sRef,
            uploadBytes, getDownloadURL }
@@ -42,7 +42,7 @@
   window._db   = db;
   window._stor = stor;
   window._fb   = { collection, doc, addDoc, updateDoc, setDoc, onSnapshot,
-                   query, orderBy, serverTimestamp, getDoc,
+                   query, orderBy, serverTimestamp, getDoc, deleteDoc,
                    sRef, uploadBytes, getDownloadURL };
   window._fbReady = true;
   document.dispatchEvent(new Event('fb-ready'));
@@ -321,6 +321,13 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
   cursor:pointer;color:var(--ink-mid);font-family:'DM Sans',sans-serif;transition:all .2s;margin-top:8px;
 }
 .btn-order-edit:hover{border-color:var(--rust);color:var(--rust);}
+.btn-order-delete{
+  display:inline-flex;align-items:center;gap:4px;
+  background:var(--parchment);border:1.5px solid var(--warm-mid);
+  border-radius:20px;padding:5px 13px;font-size:11px;font-weight:500;
+  cursor:pointer;color:var(--ink-mid);font-family:'DM Sans',sans-serif;transition:all .2s;margin-top:8px;margin-left:6px;
+}
+.btn-order-delete:hover{border-color:#b33;color:#b33;}
 .edit-mode-note{
   background:var(--amber-lt);border:1.5px solid var(--amber);border-radius:var(--r);
   padding:9px 13px;margin-bottom:11px;font-size:12px;color:var(--amber);
@@ -1511,7 +1518,10 @@ function renderPastOrders(orders) {
         </div>
       </div>
       <div class="soc-meta">${fl(o.dateFrom)} – ${fl(o.dateTo)} · ${totalCans} cans · ${checked}/${total} checked${completedDate}</div>
-      ${canEdit ? `<button class="btn-order-edit" onclick="event.stopPropagation();editOrder('${o.id}')">✏️ Edit Order</button>` : ''}
+      <div onclick="event.stopPropagation()">
+        ${canEdit ? `<button class="btn-order-edit" onclick="editOrder('${o.id}')">✏️ Edit Order</button>` : ''}
+        <button class="btn-order-delete" onclick="deleteOrder('${o.id}')">${o.status==='complete' ? '🗑 Delete' : '✕ Cancel Order'}</button>
+      </div>
       <div class="soc-items">${itemsHTML||'<p style="font-size:12px;color:var(--ink-lt);">No items</p>'}</div>
     </div>`;
   }).join('');
@@ -1731,6 +1741,21 @@ window.completeOrder = async function(orderId) {
     showToast('🎉 Order complete — great shopping, Erik!');
   } catch(err) {
     showToast('Error completing order — check connection');
+  }
+};
+
+window.deleteOrder = async function(orderId) {
+  const order = allOrders.find(o => o.id === orderId);
+  if (!order) { showToast('Order not found'); return; }
+  const label = order.status === 'complete' ? 'delete' : 'cancel and delete';
+  if (!confirm(`${label.charAt(0).toUpperCase()+label.slice(1)} "${order.name}"? This cannot be undone.`)) return;
+  try {
+    const { doc, deleteDoc } = window._fb;
+    await deleteDoc(doc(window._db, 'orders', orderId));
+    showToast('Order deleted');
+    if (editingOrderId === orderId) cancelEdit();
+  } catch(err) {
+    showToast('Error deleting order — check connection');
   }
 };
 
