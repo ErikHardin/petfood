@@ -555,7 +555,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
         📷 Food Photo
       </div>
       <div class="photo-zone" id="photoZone">
-        <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(event)" id="photoInput">
+        <input type="file" accept="image/*" onchange="handlePhoto(event)" id="photoInput">
         <img id="photoPreview" alt="">
         <div class="ph-icon" id="phIcon">🥫</div>
         <div class="ph-text" id="phText">Tap to add a journal photo<br><span style="font-size:11px;opacity:.7">(optional)</span></div>
@@ -750,6 +750,17 @@ let orderItems    = [];
 let editingOrderId = null;
 let currentFile   = null;
 let pendingShopWrites = 0;
+
+window.handlePhoto = function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  currentFile = file;
+  const preview = document.getElementById('photoPreview');
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+  document.getElementById('phIcon').style.display = 'none';
+  document.getElementById('phText').style.display = 'none';
+};
 let _pendingOrders    = null;
 
 // ═══════════════════════════════════════════════
