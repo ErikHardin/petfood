@@ -255,6 +255,13 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
   margin-bottom:9px;cursor:pointer;transition:border-color .2s,box-shadow .2s;
 }
 .food-item:hover{border-color:var(--tan);box-shadow:0 4px 16px rgba(44,32,22,.08);}
+
+/* ── BRAND GROUPS ── */
+.brand-group{border:1.5px solid var(--tan);border-radius:var(--r-lg);margin-bottom:14px;overflow:hidden;background:var(--snow);}
+.brand-group-header{font-family:'Playfair Display',serif;font-size:13px;color:var(--ink-mid);padding:9px 14px;background:var(--parchment);border-bottom:1px solid var(--warm-mid);letter-spacing:.3px;}
+.brand-group .food-item{border-radius:0;border:none;border-bottom:1px solid var(--warm-mid);margin-bottom:0;}
+.brand-group .food-item:last-child{border-bottom:none;}
+.brand-group .food-item:hover{box-shadow:none;background:var(--parchment);}
 .food-thumb{width:54px;height:54px;border-radius:10px;flex-shrink:0;background:var(--parchment);display:flex;align-items:center;justify-content:center;font-size:26px;overflow:hidden;}
 .food-thumb img{width:100%;height:100%;object-fit:cover;}
 .food-info{flex:1;min-width:0;}
@@ -1183,28 +1190,43 @@ function renderJournal() {
   const sebIcon = p.seb ? `<img class="badge-cat-photo" src="${p.seb}" alt="">` : '🤍';
   const butIcon = p.but ? `<img class="badge-cat-photo" src="${p.but}" alt="">` : '🧡';
 
-  list.innerHTML = foods.map(f => {
-    const icon  = proteinIcon[f.protein] || '🥫';
-    const thumb = f.photoURL
-      ? `<div class="food-thumb"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
-      : `<div class="food-thumb">${icon}</div>`;
-    const sebBadge = f.sebTried
-      ? (f.sebRating > 0
-          ? `<span class="cat-badge seb">${sebIcon} ${ratingEmoji[f.sebRating]} ${ratingLabel[f.sebRating]}</span>`
-          : `<span class="cat-badge rate-later">${sebIcon} Rate later</span>`)
-      : `<span class="cat-badge no">${sebIcon} Not tried</span>`;
-    const butBadge = f.butTried
-      ? (f.butRating > 0
-          ? `<span class="cat-badge but">${butIcon} ${ratingEmoji[f.butRating]} ${ratingLabel[f.butRating]}</span>`
-          : `<span class="cat-badge rate-later">${butIcon} Rate later</span>`)
-      : `<span class="cat-badge no">${butIcon} Not tried</span>`;
-    return `<div class="food-item" onclick="openRateModal('${esc(f.id)}')">
-      ${thumb}
-      <div class="food-info">
-        <div class="food-name">${esc(f.flavor)}</div>
-        <div class="food-brand">${esc(f.brand)} · ${esc(f.type||'')}</div>
-        <div class="food-cats">${sebBadge}${butBadge}</div>
-      </div>
+  const groups = {};
+  foods.forEach(f => {
+    const brand = (f.brand || 'Unknown').trim();
+    if (!groups[brand]) groups[brand] = [];
+    groups[brand].push(f);
+  });
+  const sortedBrands = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+
+  list.innerHTML = sortedBrands.map(brand => {
+    const items = groups[brand].map(f => {
+      const icon  = proteinIcon[f.protein] || '🥫';
+      const thumb = f.photoURL
+        ? `<div class="food-thumb"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
+        : `<div class="food-thumb">${icon}</div>`;
+      const sebBadge = f.sebTried
+        ? (f.sebRating > 0
+            ? `<span class="cat-badge seb">${sebIcon} ${ratingEmoji[f.sebRating]} ${ratingLabel[f.sebRating]}</span>`
+            : `<span class="cat-badge rate-later">${sebIcon} Rate later</span>`)
+        : `<span class="cat-badge no">${sebIcon} Not tried</span>`;
+      const butBadge = f.butTried
+        ? (f.butRating > 0
+            ? `<span class="cat-badge but">${butIcon} ${ratingEmoji[f.butRating]} ${ratingLabel[f.butRating]}</span>`
+            : `<span class="cat-badge rate-later">${butIcon} Rate later</span>`)
+        : `<span class="cat-badge no">${butIcon} Not tried</span>`;
+      const subText = f.type ? `<div class="food-brand">${esc(f.type)}</div>` : '';
+      return `<div class="food-item" onclick="openRateModal('${esc(f.id)}')">
+        ${thumb}
+        <div class="food-info">
+          <div class="food-name">${esc(f.flavor)}</div>
+          ${subText}
+          <div class="food-cats">${sebBadge}${butBadge}</div>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="brand-group">
+      <div class="brand-group-header">${esc(brand)}</div>
+      ${items}
     </div>`;
   }).join('');
 }
