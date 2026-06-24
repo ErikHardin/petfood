@@ -262,8 +262,14 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 .brand-group .food-item{border-radius:0;border:none;border-bottom:1px solid var(--warm-mid);margin-bottom:0;}
 .brand-group .food-item:last-child{border-bottom:none;}
 .brand-group .food-item:hover{box-shadow:none;background:var(--parchment);}
-.food-thumb{width:54px;height:54px;border-radius:10px;flex-shrink:0;background:var(--parchment);display:flex;align-items:center;justify-content:center;font-size:26px;overflow:hidden;}
+.food-thumb{width:72px;height:72px;border-radius:10px;flex-shrink:0;background:var(--parchment);display:flex;align-items:center;justify-content:center;font-size:32px;overflow:hidden;}
 .food-thumb img{width:100%;height:100%;object-fit:cover;}
+.food-edit-btn{
+  background:none;border:none;cursor:pointer;font-size:14px;padding:4px 6px;
+  border-radius:6px;color:var(--ink-lt);opacity:.6;transition:opacity .15s,background .15s;
+  flex-shrink:0;align-self:flex-start;margin-top:2px;
+}
+.food-edit-btn:hover{opacity:1;background:var(--parchment);}
 .food-info{flex:1;min-width:0;}
 .food-name{font-family:'Playfair Display',serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .food-brand{font-size:11px;color:var(--ink-lt);margin-bottom:5px;}
@@ -561,8 +567,8 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
 
   <!-- ══════════ LOG ══════════ -->
   <div class="page" id="page-log">
-    <div class="section-title">Log a Food</div>
-    <div class="section-sub">Snap it, rate it, remember it.</div>
+    <div class="section-title" id="logPageTitle">Log a Food</div>
+    <div class="section-sub" id="logPageSub">Snap it, rate it, remember it.</div>
 
     <div class="card">
       <div class="card-label">
@@ -647,6 +653,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
     </div>
 
     <button class="btn-p" id="saveBtn" onclick="saveFood()">🐾 Save to Journal</button>
+    <button class="btn-s" id="cancelEditBtn" onclick="cancelFoodEdit()" style="display:none;">← Back to Journal</button>
   </div>
 
   <!-- ══════════ JOURNAL ══════════ -->
@@ -761,8 +768,10 @@ let allOrders     = [];
 let journalFilter = 'all';
 let minRating     = 3;
 let orderItems    = [];
-let editingOrderId = null;
-let currentFile   = null;
+let editingOrderId    = null;
+let editingFoodId     = null;
+let editingFoodPhotoURL = null;
+let currentFile       = null;
 let pendingShopWrites = 0;
 
 window.handlePhoto = function(e) {
@@ -1091,7 +1100,7 @@ window.saveFood = async function() {
   btn.disabled = true; btn.textContent = 'Saving…';
 
   try {
-    let photoURL = null;
+    let photoURL = editingFoodId ? editingFoodPhotoURL : null;
     if (currentFile && window._stor) {
       const { sRef, uploadBytes, getDownloadURL } = window._fb;
       const ref  = sRef(window._stor, `foods/${Date.now()}_${currentFile.name}`);
@@ -1099,8 +1108,7 @@ window.saveFood = async function() {
       photoURL   = await getDownloadURL(snap.ref);
     }
 
-    const { collection, addDoc, serverTimestamp } = window._fb;
-    await addDoc(collection(window._db,'foods'), {
+    const data = {
       brand,
       flavor,
       type:      document.getElementById('fType').value,
@@ -1111,17 +1119,26 @@ window.saveFood = async function() {
       butTried:  tried.but,
       sebRating: tried.seb ? ratings.seb : 0,
       butRating: tried.but ? ratings.but : 0,
-      createdAt: serverTimestamp()
-    });
+    };
 
-    showToast('🐾 Saved to journal!');
+    if (editingFoodId) {
+      const { doc, updateDoc } = window._fb;
+      await updateDoc(doc(window._db, 'foods', editingFoodId), data);
+      showToast('Food updated 🐾');
+    } else {
+      const { collection, addDoc, serverTimestamp } = window._fb;
+      await addDoc(collection(window._db,'foods'), { ...data, createdAt: serverTimestamp() });
+      showToast('🐾 Saved to journal!');
+    }
+
     resetLogForm();
     setTimeout(() => switchPage('journal'), 600);
   } catch(err) {
     console.error('Save food:', err);
     showToast('Save failed — check console for details');
   } finally {
-    btn.disabled = false; btn.textContent = '🐾 Save to Journal';
+    btn.disabled = false;
+    btn.textContent = editingFoodId ? '✏️ Update Food' : '🐾 Save to Journal';
   }
 };
 
@@ -1154,6 +1171,8 @@ function resetLogForm() {
   ['phIcon','phText'].forEach(id => document.getElementById(id).style.display = '');
   document.getElementById('photoInput').value = '';
   currentFile = null;
+  editingFoodId = null;
+  editingFoodPhotoURL = null;
   ratings.seb = 0; ratings.but = 0;
   tried.seb   = true; tried.but = true;
   ['seb','but'].forEach(c => {
@@ -1162,7 +1181,68 @@ function resetLogForm() {
     const r = document.getElementById(c+'Rating');
     r.style.opacity = '1'; r.style.pointerEvents = 'auto';
   });
+  document.getElementById('logPageTitle').textContent = 'Log a Food';
+  document.getElementById('logPageSub').textContent   = 'Snap it, rate it, remember it.';
+  document.getElementById('saveBtn').textContent      = '🐾 Save to Journal';
+  document.getElementById('cancelEditBtn').style.display = 'none';
 }
+
+window.openEditFood = function(foodId) {
+  const food = allFoods.find(f => f.id === foodId);
+  if (!food) return;
+
+  resetLogForm();
+  editingFoodId       = foodId;
+  editingFoodPhotoURL = food.photoURL || null;
+
+  document.getElementById('fBrand').value  = food.brand  || '';
+  document.getElementById('fFlavor').value = food.flavor || '';
+  document.getElementById('fNotes').value  = food.notes  || '';
+
+  const typeEl = document.getElementById('fType');
+  for (let i = 0; i < typeEl.options.length; i++) {
+    if (typeEl.options[i].value === food.type) { typeEl.selectedIndex = i; break; }
+  }
+  const proteinEl = document.getElementById('fProtein');
+  for (let i = 0; i < proteinEl.options.length; i++) {
+    if (proteinEl.options[i].value === food.protein) { proteinEl.selectedIndex = i; break; }
+  }
+
+  if (food.photoURL) {
+    const preview = document.getElementById('photoPreview');
+    preview.src = food.photoURL;
+    preview.style.display = 'block';
+    document.getElementById('phIcon').style.display = 'none';
+    document.getElementById('phText').style.display = 'none';
+  }
+
+  tried.seb = food.sebTried ?? true;
+  tried.but = food.butTried ?? true;
+  ratings.seb = food.sebRating || 0;
+  ratings.but = food.butRating || 0;
+  ['seb','but'].forEach(c => {
+    document.getElementById(c+'Toggle').classList.toggle('on', tried[c]);
+    const r = document.getElementById(c+'Rating');
+    r.style.opacity       = tried[c] ? '1' : '0.38';
+    r.style.pointerEvents = tried[c] ? 'auto' : 'none';
+    document.querySelectorAll('.paw-btn.'+c).forEach(b => {
+      const v = parseInt(b.getAttribute('onclick').match(/rate\('.*?',(\d)/)?.[1] || '0');
+      b.classList.toggle('sel', v === ratings[c]);
+    });
+  });
+
+  document.getElementById('logPageTitle').textContent = 'Edit Food';
+  document.getElementById('logPageSub').textContent   = food.brand + ' · ' + food.flavor;
+  document.getElementById('saveBtn').textContent      = '✏️ Update Food';
+  document.getElementById('cancelEditBtn').style.display = '';
+
+  switchPage('log');
+};
+
+window.cancelFoodEdit = function() {
+  resetLogForm();
+  switchPage('journal');
+};
 
 // ═══════════════════════════════════════════════
 //  JOURNAL
@@ -1222,6 +1302,7 @@ function renderJournal() {
           ${subText}
           <div class="food-cats">${sebBadge}${butBadge}</div>
         </div>
+        <button class="food-edit-btn" onclick="event.stopPropagation();openEditFood('${esc(f.id)}')" title="Edit food">✏️</button>
       </div>`;
     }).join('');
     return `<div class="brand-group">
