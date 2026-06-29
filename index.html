@@ -273,8 +273,8 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 .food-info{flex:1;min-width:0;}
 .food-name{font-family:'Playfair Display',serif;font-size:14px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .food-brand{font-size:11px;color:var(--ink-lt);margin-bottom:5px;}
-.food-cats{display:flex;gap:5px;flex-wrap:wrap;}
-.cat-badge{font-size:13px;padding:5px 11px;border-radius:20px;font-weight:500;}
+.food-cats{display:flex;gap:5px;flex-wrap:nowrap;overflow:hidden;}
+.cat-badge{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:500;white-space:nowrap;}
 .cat-badge.seb{background:#EEF3F9;color:var(--seb);}
 .cat-badge.but{background:#FDF0E8;color:var(--rust);}
 .cat-badge.no{background:var(--parchment);color:var(--ink-lt);}
@@ -514,7 +514,7 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
   transition:background .2s;
 }
 .pz-close:hover{background:rgba(255,255,255,.32);}
-.food-thumb-zoomable{cursor:zoom-in;}
+.food-thumb-zoomable{cursor:pointer;border:none;padding:0;}
 .rate-sheet{
   background:var(--cream);border-radius:var(--r-lg) var(--r-lg) 0 0;
   padding:22px 18px 36px;width:100%;max-width:480px;
@@ -1312,7 +1312,7 @@ function renderJournal() {
     const items = groups[brand].map(f => {
       const icon  = proteinIcon[f.protein] || '🥫';
       const thumb = f.photoURL
-        ? `<div class="food-thumb food-thumb-zoomable" onclick="event.stopPropagation();openPhotoZoom('${esc(f.photoURL)}')" title="Tap to enlarge"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
+        ? `<button type="button" class="food-thumb food-thumb-zoomable" onclick="event.stopPropagation();openPhotoZoom('${esc(f.photoURL)}')" title="Tap to enlarge"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></button>`
         : `<div class="food-thumb">${icon}</div>`;
       const sebBadge = f.sebTried
         ? (f.sebRating > 0
@@ -1707,7 +1707,7 @@ function renderShoppingTab(orders) {
           const oos  = it.outOfStock || false;
           const cls  = ['shop-item', it.checked?'done':'', oos?'oos':''].filter(Boolean).join(' ');
           const siThumb = it.photoURL
-            ? `<div class="si-thumb food-thumb-zoomable" onclick="event.stopPropagation();openPhotoZoom('${esc(it.photoURL)}')" title="Tap to enlarge"><img src="${esc(it.photoURL)}" alt="" loading="lazy"></div>`
+            ? `<button type="button" class="si-thumb food-thumb-zoomable" onclick="event.stopPropagation();openPhotoZoom('${esc(it.photoURL)}')" title="Tap to enlarge"><img src="${esc(it.photoURL)}" alt="" loading="lazy"></button>`
             : `<div class="si-icon">${icon}</div>`;
           return `<div class="${cls}" onclick="toggleItem('${active.id}',${it._idx},this)">
             <div class="si-check">✓</div>
