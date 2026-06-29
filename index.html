@@ -491,6 +491,30 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
   justify-content:center;
 }
 #rateModal.hidden{display:none;}
+
+/* ── PHOTO ZOOM LIGHTBOX ── */
+#photoZoomModal{
+  position:fixed;inset:0;z-index:700;
+  background:rgba(0,0,0,.92);
+  display:flex;align-items:center;justify-content:center;
+  padding:20px;
+}
+#photoZoomModal.hidden{display:none;}
+#photoZoomImg{
+  max-width:100%;max-height:90dvh;
+  border-radius:var(--r);object-fit:contain;
+  box-shadow:0 8px 40px rgba(0,0,0,.6);
+}
+.pz-close{
+  position:absolute;top:16px;right:16px;
+  background:rgba(255,255,255,.18);border:none;
+  color:white;font-size:18px;width:38px;height:38px;
+  border-radius:50%;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .2s;
+}
+.pz-close:hover{background:rgba(255,255,255,.32);}
+.food-thumb-zoomable{cursor:zoom-in;}
 .rate-sheet{
   background:var(--cream);border-radius:var(--r-lg) var(--r-lg) 0 0;
   padding:22px 18px 36px;width:100%;max-width:480px;
@@ -534,6 +558,12 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
     <button class="pin-key confirm" onclick="pinSubmit()">↵</button>
   </div>
   <div class="pin-error" id="pinError"></div>
+</div>
+
+<!-- PHOTO ZOOM LIGHTBOX -->
+<div id="photoZoomModal" class="hidden" onclick="closePhotoZoom()">
+  <button class="pz-close" onclick="closePhotoZoom()">✕</button>
+  <img id="photoZoomImg" alt="">
 </div>
 
 <!-- RATE MODAL -->
@@ -1282,7 +1312,7 @@ function renderJournal() {
     const items = groups[brand].map(f => {
       const icon  = proteinIcon[f.protein] || '🥫';
       const thumb = f.photoURL
-        ? `<div class="food-thumb"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
+        ? `<div class="food-thumb food-thumb-zoomable" onclick="event.stopPropagation();openPhotoZoom('${esc(f.photoURL)}')" title="Tap to enlarge"><img src="${esc(f.photoURL)}" alt="" loading="lazy"></div>`
         : `<div class="food-thumb">${icon}</div>`;
       const sebBadge = f.sebTried
         ? (f.sebRating > 0
@@ -1677,7 +1707,7 @@ function renderShoppingTab(orders) {
           const oos  = it.outOfStock || false;
           const cls  = ['shop-item', it.checked?'done':'', oos?'oos':''].filter(Boolean).join(' ');
           const siThumb = it.photoURL
-            ? `<div class="si-thumb"><img src="${esc(it.photoURL)}" alt="" loading="lazy"></div>`
+            ? `<div class="si-thumb food-thumb-zoomable" onclick="event.stopPropagation();openPhotoZoom('${esc(it.photoURL)}')" title="Tap to enlarge"><img src="${esc(it.photoURL)}" alt="" loading="lazy"></div>`
             : `<div class="si-icon">${icon}</div>`;
           return `<div class="${cls}" onclick="toggleItem('${active.id}',${it._idx},this)">
             <div class="si-check">✓</div>
@@ -1896,6 +1926,15 @@ function esc(str) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+window.openPhotoZoom = function(url) {
+  document.getElementById('photoZoomImg').src = url;
+  document.getElementById('photoZoomModal').classList.remove('hidden');
+};
+window.closePhotoZoom = function() {
+  document.getElementById('photoZoomModal').classList.add('hidden');
+  document.getElementById('photoZoomImg').src = '';
+};
 
 window.showToast = function(msg) {
   const t = document.getElementById('toast');
