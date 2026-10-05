@@ -842,6 +842,11 @@ nav.hidden{display:none;}
         </div>
         <button class="btn-p" onclick="addListItem()">➕ Add to List</button>
       </div>
+      <button class="btn-order-edit" id="pasteToggleBtn" onclick="togglePasteBox()" style="margin-top:12px;">📋 Paste a whole list</button>
+      <div id="pasteBox" style="display:none;margin-top:11px;">
+        <div class="fg"><label>One item per line</label><textarea id="liPaste" rows="6" style="min-height:120px;" placeholder="Paper towels&#10;Toothpaste&#10;Dish soap"></textarea></div>
+        <button class="btn-p" onclick="addPastedItems()">➕ Add All to List</button>
+      </div>
     </div>
 
     <div id="listDraftCard" style="display:none;">
@@ -2106,6 +2111,31 @@ window.addListItem = function() {
   document.getElementById('liQty').textContent = 1;
   renderListDraft();
   nameEl.focus();
+};
+
+window.togglePasteBox = function() {
+  const box  = document.getElementById('pasteBox');
+  const open = box.style.display === 'none';
+  box.style.display = open ? '' : 'none';
+  document.getElementById('pasteToggleBtn').textContent = open ? '✕ Hide paste box' : '📋 Paste a whole list';
+  if (open) document.getElementById('liPaste').focus();
+};
+
+// One item per line (or comma-separated if it's all on one line).
+// Strips bullets, numbering and checkboxes; every item gets qty 1.
+window.addPastedItems = function() {
+  const el    = document.getElementById('liPaste');
+  const raw   = el.value.trim();
+  let   lines = raw.split(/\r?\n/);
+  if (lines.length === 1 && raw.includes(',')) lines = raw.split(',');
+  const names = lines
+    .map(l => l.replace(/^\s*(?:[-*•·–—▪◦]|\d+[.)]|\[[ xX]?\]|[☐☑✓✔])\s*/, '').trim())
+    .filter(Boolean);
+  if (!names.length) { showToast('Paste some items first 📋'); el.focus(); return; }
+  names.forEach(name => listDraft.push({ name, note: '', qty: 1 }));
+  el.value = '';
+  renderListDraft();
+  showToast(`Added ${names.length} item${names.length===1?'':'s'} ✅`);
 };
 
 ['liName','liNote'].forEach(id => {
