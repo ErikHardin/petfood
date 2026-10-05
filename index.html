@@ -484,6 +484,34 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
 .pin-key.confirm{font-size:18px;}
 .pin-error{font-size:13px;color:#e53935;margin-top:12px;min-height:18px;text-align:center;}
 
+/* ── STORE PICKER ── */
+#storeScreen{
+  position:fixed;inset:0;z-index:9000;
+  background:var(--cream);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:32px 24px;
+}
+#storeScreen.hidden{display:none;}
+.store-btns{display:flex;flex-direction:column;gap:12px;width:100%;max-width:320px;}
+.store-btn{
+  position:relative;display:flex;align-items:center;gap:14px;
+  padding:18px 20px;border-radius:var(--r-lg);border:1.5px solid var(--warm-mid);
+  background:var(--snow);box-shadow:var(--shadow);cursor:pointer;text-align:left;
+  font-family:'DM Sans',sans-serif;color:var(--ink);transition:border-color .2s,transform .1s;
+}
+.store-btn:hover{border-color:var(--rust);}
+.store-btn:active{transform:scale(.98);}
+.store-btn-icon{font-size:30px;line-height:1;}
+.store-btn-name{font-family:'Playfair Display',serif;font-size:19px;color:var(--rust);}
+.store-btn-sub{font-size:11px;color:var(--ink-lt);margin-top:2px;}
+.store-btn .nav-badge{top:50%;right:18px;transform:translateY(-50%);font-size:11px;padding:2px 8px;}
+#switchStoreBtn{background:none;border:none;font-size:19px;cursor:pointer;opacity:.45;transition:opacity .2s;}
+#switchStoreBtn:hover{opacity:1;}
+nav.hidden{display:none;}
+#listNav{grid-template-columns:repeat(2,1fr);}
+.li-add-row{display:flex;align-items:center;gap:10px;margin-top:11px;}
+.li-add-row .btn-p{margin-top:0;flex:1;}
+
 /* ── RATE MODAL ── */
 #rateModal{
   position:fixed;inset:0;z-index:500;
@@ -560,6 +588,29 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
   <div class="pin-error" id="pinError"></div>
 </div>
 
+<!-- STORE PICKER (shown on every app open, under the PIN screen) -->
+<div id="storeScreen">
+  <div class="pin-title">Where are we shopping?</div>
+  <div class="pin-sub">Pick a list to open</div>
+  <div class="store-btns">
+    <button class="store-btn" onclick="pickStore('paw')">
+      <span class="store-btn-icon">🐾</span>
+      <span><div class="store-btn-name">Paw Approved</div><div class="store-btn-sub">Cat food journal &amp; orders</div></span>
+      <span class="nav-badge" id="storeBadge-paw"></span>
+    </button>
+    <button class="store-btn" onclick="pickStore('target')">
+      <span class="store-btn-icon">🎯</span>
+      <span><div class="store-btn-name">Target</div><div class="store-btn-sub">Target shopping list</div></span>
+      <span class="nav-badge" id="storeBadge-target"></span>
+    </button>
+    <button class="store-btn" onclick="pickStore('grocery')">
+      <span class="store-btn-icon">🛒</span>
+      <span><div class="store-btn-name">Groceries</div><div class="store-btn-sub">Grocery shopping list</div></span>
+      <span class="nav-badge" id="storeBadge-grocery"></span>
+    </button>
+  </div>
+</div>
+
 <!-- PHOTO ZOOM LIGHTBOX -->
 <div id="photoZoomModal" class="hidden" onclick="closePhotoZoom()">
   <button class="pz-close" onclick="closePhotoZoom()">✕</button>
@@ -580,15 +631,16 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
 
 <header>
   <div class="logo">
-    <div class="logo-paw">🐾</div>
+    <div class="logo-paw" id="logoIcon">🐾</div>
     <div>
-      <div class="logo-text">Paw Approved</div>
-      <div class="logo-sub">Cat Food Journal</div>
+      <div class="logo-text" id="logoText">Paw Approved</div>
+      <div class="logo-sub" id="logoSub">Cat Food Journal</div>
     </div>
   </div>
   <div class="hdr-right">
     <div class="hdr-dot" id="liveDot" title="Firebase connection"></div>
     <button id="logFoodBtn" onclick="switchPage('log')" title="Log a food">✏️</button>
+    <button id="switchStoreBtn" onclick="openStorePicker()" title="Switch store">🔀</button>
     <button id="lockBtn" onclick="lockApp()" title="Lock app">🔒</button>
   </div>
 </header>
@@ -767,9 +819,72 @@ input[type=date]{-webkit-appearance:none;appearance:none;}
     </div>
   </div>
 
+  <!-- ══════════ LIST ORDER (Target / Groceries) ══════════ -->
+  <div class="page" id="page-list-order">
+    <div class="section-title" id="listOrderTitle">Create a List</div>
+    <div class="section-sub">Add items — Erik will shop it. 🛒</div>
+    <div class="edit-mode-note" id="listEditNote" style="display:none;">
+      <span>✏️ Editing: <strong id="listEditName"></strong></span>
+      <button class="btn-cancel-edit" onclick="cancelListEdit()">✕ Cancel</button>
+    </div>
+
+    <div class="card">
+      <div class="card-label">➕ Add an item</div>
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        <div class="fg"><label>Item</label><input type="text" id="liName" placeholder="e.g. Paper towels" enterkeyhint="done"></div>
+        <div class="fg"><label>Note <span style="text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="liNote" placeholder="e.g. the big pack, Bounty" enterkeyhint="done"></div>
+      </div>
+      <div class="li-add-row">
+        <div class="opi-qty-ctrl">
+          <button class="qty-btn" onclick="adjNewListQty(-1)">−</button>
+          <span class="qty-val" id="liQty">1</span>
+          <button class="qty-btn" onclick="adjNewListQty(1)">+</button>
+        </div>
+        <button class="btn-p" onclick="addListItem()">➕ Add to List</button>
+      </div>
+    </div>
+
+    <div id="listDraftCard" style="display:none;">
+      <div class="card">
+        <div class="card-label" style="margin-bottom:7px;">🏷️ List name</div>
+        <div class="fg"><input type="text" id="listName" placeholder="e.g. Weekend run"></div>
+      </div>
+      <div id="listDraftItems"></div>
+      <button class="btn-p" id="sendListBtn" onclick="saveList()" style="margin-bottom:24px;">✅ Send to Erik's Shopping List</button>
+    </div>
+
+    <div style="margin-top:6px;">
+      <div class="section-title" style="font-size:18px;margin-bottom:3px;">Past Lists</div>
+      <div class="section-sub">Lists you've created.</div>
+      <div id="pastListsList"><div class="loading-state"><div class="ls-spin"></div><br>Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════ LIST SHOPPING (Target / Groceries) ══════════ -->
+  <div class="page" id="page-list-shop">
+    <div class="section-title" id="listShopTitle">Shopping</div>
+    <div class="section-sub">Check items off as you go.</div>
+    <div id="activeListSection"><div class="loading-state"><div class="ls-spin"></div><br>Checking for active lists…</div></div>
+    <div style="margin-top:20px;">
+      <div class="section-title" style="font-size:17px;margin-bottom:3px;">Completed</div>
+      <div class="section-sub">Lists you've already shopped.</div>
+      <div id="completedListsList"></div>
+    </div>
+  </div>
+
 </main>
 
-<nav>
+<nav id="listNav" class="hidden">
+  <button id="nav-list-order" onclick="switchPage('list-order')">
+    <span class="nav-icon">📋</span>Order
+  </button>
+  <button id="nav-list-shop" onclick="switchPage('list-shop')">
+    <span class="nav-icon">🛒</span>Shopping
+    <span class="nav-badge" id="listShopBadge"></span>
+  </button>
+</nav>
+
+<nav id="pawNav">
   <button class="active" id="nav-journal" onclick="switchPage('journal')">
     <span class="nav-icon">📖</span>Journal
   </button>
@@ -859,6 +974,7 @@ window.lockApp = function() {
   document.getElementById('pinError').textContent = '';
   document.getElementById('pinSub').textContent = storedPin ? 'Enter your PIN' : 'Create a 4-digit PIN';
   document.getElementById('pinScreen').classList.remove('hidden');
+  document.getElementById('storeScreen').classList.remove('hidden');
 };
 
 window.pinKey = function(digit) {
@@ -1101,6 +1217,25 @@ whenFB(() => {
       }
     },
     err => console.error('Orders listener:', err)
+  );
+
+  // Store lists (Target / Groceries) — live
+  onSnapshot(
+    query(collection(db,'lists'), orderBy('createdAt','desc')),
+    snap => {
+      try {
+        allLists = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+        if (pendingListWrites === 0) {
+          renderListPages();
+        } else {
+          _pendingLists = allLists;
+        }
+        updateListBadges();
+      } catch(e) {
+        console.error('Lists render error:', e);
+      }
+    },
+    err => console.error('Lists listener:', err)
   );
 });
 
@@ -1898,6 +2033,417 @@ function updateShopBadge(orders) {
   const badge  = document.getElementById('shopBadge');
   badge.textContent = active||'';
   badge.classList.toggle('show', active>0);
+  const sBadge = document.getElementById('storeBadge-paw');
+  sBadge.textContent = active||'';
+  sBadge.classList.toggle('show', active>0);
+}
+
+
+// ═══════════════════════════════════════════════
+//  STORE LISTS (Target / Groceries)
+// ═══════════════════════════════════════════════
+const STORES = {
+  paw:     { name:'Paw Approved', sub:'Cat Food Journal', icon:'🐾' },
+  target:  { name:'Target',       sub:'Shopping List',    icon:'🎯' },
+  grocery: { name:'Groceries',    sub:'Shopping List',    icon:'🛒' },
+};
+
+let currentStore      = null;   // 'paw' | 'target' | 'grocery'
+let allLists          = [];
+let listDraft         = [];     // [{ name, note, qty }]
+let newListQty        = 1;
+let editingListId     = null;
+let pendingListWrites = 0;
+let _pendingLists     = null;
+
+window.openStorePicker = function() {
+  document.getElementById('storeScreen').classList.remove('hidden');
+};
+
+window.pickStore = function(store) {
+  if (store !== currentStore) resetListDraft();
+  currentStore = store;
+  document.getElementById('storeScreen').classList.add('hidden');
+  applyStore();
+};
+
+function applyStore() {
+  const s     = STORES[currentStore];
+  const isPaw = currentStore === 'paw';
+  document.getElementById('logoIcon').textContent = s.icon;
+  document.getElementById('logoText').textContent = s.name;
+  document.getElementById('logoSub').textContent  = s.sub;
+  document.getElementById('logFoodBtn').style.display = isPaw ? '' : 'none';
+  document.getElementById('pawNav').classList.toggle('hidden', !isPaw);
+  document.getElementById('listNav').classList.toggle('hidden', isPaw);
+  if (isPaw) { switchPage('journal'); return; }
+  document.getElementById('listOrderTitle').textContent = `${s.name} List`;
+  document.getElementById('listShopTitle').textContent  = `${s.name} Shopping`;
+  renderListPages();
+  updateListBadges();
+  switchPage('list-order');
+}
+
+function storeLists() {
+  return allLists.filter(l => l.store === currentStore);
+}
+
+// ── draft list (Order tab) ──
+window.adjNewListQty = function(delta) {
+  newListQty = Math.max(1, newListQty + delta);
+  document.getElementById('liQty').textContent = newListQty;
+};
+
+window.addListItem = function() {
+  const nameEl = document.getElementById('liName');
+  const noteEl = document.getElementById('liNote');
+  const name   = nameEl.value.trim();
+  if (!name) { showToast('Type an item name first ✏️'); nameEl.focus(); return; }
+  listDraft.push({ name, note: noteEl.value.trim(), qty: newListQty });
+  nameEl.value = '';
+  noteEl.value = '';
+  newListQty   = 1;
+  document.getElementById('liQty').textContent = 1;
+  renderListDraft();
+  nameEl.focus();
+};
+
+['liName','liNote'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addListItem(); }
+  });
+});
+
+function renderListDraft() {
+  document.getElementById('listDraftCard').style.display = listDraft.length ? '' : 'none';
+  document.getElementById('listDraftItems').innerHTML = listDraft.map((it, idx) => `
+    <div class="opi">
+      <div class="opi-icon">🛍️</div>
+      <div class="opi-info">
+        <div class="opi-name">${esc(it.name)}</div>
+        ${it.note ? `<div class="opi-brand">${esc(it.note)}</div>` : ''}
+      </div>
+      <div class="opi-qty-ctrl">
+        <button class="qty-btn" onclick="adjListDraftQty(${idx},-1)">−</button>
+        <span class="qty-val">${it.qty}</span>
+        <button class="qty-btn" onclick="adjListDraftQty(${idx},1)">+</button>
+      </div>
+      <button class="opi-del" onclick="removeListDraftItem(${idx})" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+window.adjListDraftQty = function(idx, delta) {
+  if (!listDraft[idx]) return;
+  listDraft[idx].qty = Math.max(1, listDraft[idx].qty + delta);
+  const rows = document.getElementById('listDraftItems').querySelectorAll('.opi');
+  const qv   = rows[idx] && rows[idx].querySelector('.qty-val');
+  if (qv) qv.textContent = listDraft[idx].qty;
+};
+
+window.removeListDraftItem = function(idx) {
+  listDraft.splice(idx, 1);
+  renderListDraft();
+};
+
+function resetListDraft() {
+  listDraft     = [];
+  editingListId = null;
+  newListQty    = 1;
+  document.getElementById('liQty').textContent       = 1;
+  document.getElementById('liName').value            = '';
+  document.getElementById('liNote').value            = '';
+  document.getElementById('listName').value          = '';
+  document.getElementById('listEditNote').style.display = 'none';
+  document.getElementById('sendListBtn').textContent = "✅ Send to Erik's Shopping List";
+  renderListDraft();
+}
+
+window.editList = function(listId) {
+  const list = allLists.find(l => l.id === listId);
+  if (!list) { showToast('List not found'); return; }
+  listDraft = getOrderItems(list).map(it => ({ name: it.name, note: it.note || '', qty: it.qty || 1 }));
+  editingListId = listId;
+  document.getElementById('listName').value             = list.name;
+  document.getElementById('listEditNote').style.display = '';
+  document.getElementById('listEditName').textContent   = list.name;
+  document.getElementById('sendListBtn').textContent    = '✅ Update List';
+  renderListDraft();
+  switchPage('list-order');
+  showToast(`Editing "${list.name}" — adjust and tap Update`);
+};
+
+window.cancelListEdit = function() {
+  resetListDraft();
+};
+
+window.saveList = async function() {
+  if (!listDraft.length) { showToast('Add at least one item first ➕'); return; }
+  if (!window._db)       { showToast('Firebase not ready yet'); return; }
+
+  const today      = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+  const name       = document.getElementById('listName').value.trim() || `${STORES[currentStore].name} – ${today}`;
+  const btn        = document.getElementById('sendListBtn');
+  const wasEditing = editingListId;
+  const store      = currentStore;
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const items = listDraft.map(it => ({
+    name: it.name, note: it.note || '', qty: it.qty, checked: false, outOfStock: false
+  }));
+
+  try {
+    if (wasEditing) {
+      const { doc, updateDoc } = window._fb;
+      await updateDoc(doc(window._db,'lists',wasEditing), { name, items });
+      showToast(`"${name}" updated! ✅`);
+    } else {
+      const { collection, addDoc, serverTimestamp } = window._fb;
+      await addDoc(collection(window._db,'lists'), {
+        store, name, status: 'active', createdAt: serverTimestamp(), items
+      });
+      showToast(`"${name}" sent to Erik's Shopping tab! 🛒`);
+    }
+    resetListDraft();
+  } catch(err) {
+    console.error('Save list:', err);
+    showToast('Save failed — check connection');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = editingListId ? '✅ Update List' : "✅ Send to Erik's Shopping List";
+  }
+};
+
+// ── render both list pages for the current store ──
+function renderListPages() {
+  if (!currentStore || currentStore === 'paw') return;
+  const lists = storeLists();
+  renderPastLists(lists);
+  renderListShopping(lists);
+}
+
+function listItemRow(it) {
+  return `<div class="soc-item-row">🛍️ ${esc(it.name)} ×${it.qty||1}${it.note?` <span style="color:var(--ink-lt);">· ${esc(it.note)}</span>`:''}${it.outOfStock?' (OOS)':it.checked?' ✓':''}</div>`;
+}
+
+function renderPastLists(lists) {
+  const el = document.getElementById('pastListsList');
+  if (!lists.length) {
+    el.innerHTML = `<div class="empty-state"><div class="ei">📭</div><p>No lists yet.</p></div>`;
+    return;
+  }
+  const statusLabel = { active:'🛒 Erik Shopping', shopping:'🛒 In Progress', complete:'✅ Completed' };
+  const statusClass = s => s==='complete' ? 'complete' : s==='shopping' ? 'shopping' : 'active';
+
+  el.innerHTML = lists.map(l => {
+    const li           = getOrderItems(l);
+    const checked      = li.filter(it=>it.checked).length;
+    const createdStr   = formatTs(l.createdAt);
+    const completedStr = formatTs(l.completedAt);
+    const canEdit      = l.status === 'active' && !li.some(it=>it.checked || it.outOfStock);
+    return `<div class="soc" onclick="toggleOrderExpand(this)">
+      <div class="soc-hdr">
+        <div class="soc-name">${esc(l.name)}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="soc-status ${statusClass(l.status)}">${statusLabel[l.status]||l.status}</span>
+          <span class="soc-chevron">▼</span>
+        </div>
+      </div>
+      <div class="soc-meta">${createdStr ? createdStr+' · ' : ''}${li.length} item${li.length===1?'':'s'} · ${checked}/${li.length} checked${completedStr?` · Shopped ${completedStr}`:''}</div>
+      <div onclick="event.stopPropagation()">
+        ${canEdit ? `<button class="btn-order-edit" onclick="editList('${l.id}')">✏️ Edit List</button>` : ''}
+        <button class="btn-order-delete" onclick="deleteList('${l.id}')">${l.status==='complete' ? '🗑 Delete' : '✕ Cancel List'}</button>
+      </div>
+      <div class="soc-items">${li.map(listItemRow).join('')||'<p style="font-size:12px;color:var(--ink-lt);">No items</p>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderListShopping(lists) {
+  const activeLists = lists.filter(l => l.status==='active' || l.status==='shopping');
+  const done        = lists.filter(l => l.status==='complete');
+  const sec         = document.getElementById('activeListSection');
+
+  if (!activeLists.length) {
+    sec.innerHTML = `<div class="no-order-state">
+      <div class="noi">${STORES[currentStore].icon}</div>
+      <p>No active list yet.<br>Add items in the <strong>Order</strong> tab!</p>
+    </div>
+    <button class="btn-s" onclick="switchPage('list-order')">Go to Order Tab →</button>`;
+  } else {
+    // Preserve which list cards are currently open before re-render
+    const openIds = new Set(
+      [...sec.querySelectorAll('.aoc-body.open')].map(el => el.id.replace('aoc-body-', ''))
+    );
+
+    sec.innerHTML = activeLists.map(l => {
+      const items    = getOrderItems(l);
+      const checked  = items.filter(it=>it.checked).length;
+      const oosCount = items.filter(it=>it.outOfStock).length;
+      const pct      = items.length ? Math.round(checked/items.length*100) : 0;
+      const rows = items.map((it, idx) => {
+        const oos = it.outOfStock || false;
+        const cls = ['shop-item', it.checked?'done':'', oos?'oos':''].filter(Boolean).join(' ');
+        return `<div class="${cls}" onclick="toggleListItem('${l.id}',${idx},this)">
+          <div class="si-check">✓</div>
+          <div class="si-icon">🛍️</div>
+          <div class="si-info">
+            <div class="si-name">${esc(it.name)}</div>
+            ${it.note ? `<div class="si-sub">${esc(it.note)}</div>` : ''}
+          </div>
+          <div class="si-qty">×${it.qty||1}</div>
+          <button class="si-oos-btn${oos?' active':''}" onclick="event.stopPropagation();toggleListOOS('${l.id}',${idx},this)">${oos?'Out of stock':'OOS?'}</button>
+        </div>`;
+      }).join('');
+      const notStarted = !items.some(it => it.checked || it.outOfStock);
+      return `<div class="aoc" id="aoc-${l.id}">
+        <div class="aoc-hdr" onclick="toggleActiveOrder('${l.id}')">
+          <div>
+            <div class="aoc-title">${esc(l.name)}</div>
+            <div class="aoc-meta">${items.length} item${items.length===1?'':'s'} · ${checked}/${items.length} found${oosCount>0?` · ${oosCount} OOS`:''}</div>
+          </div>
+          <div class="aoc-right">
+            <div class="aoc-prog-wrap"><div class="aoc-prog-fill" style="width:${pct}%"></div></div>
+            <span class="aoc-chevron" id="aoc-chev-${l.id}">▼</span>
+          </div>
+        </div>
+        <div class="aoc-body" id="aoc-body-${l.id}">
+          ${notStarted ? `<button class="btn-order-edit" style="margin-bottom:12px;" onclick="editList('${l.id}')">✏️ Edit List</button>` : ''}
+          ${rows}
+          <button class="btn-p green" style="margin-top:8px;" onclick="completeList('${l.id}')">🎉 Mark List Complete</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    openIds.forEach(id => {
+      const body = document.getElementById('aoc-body-'+id);
+      const chev = document.getElementById('aoc-chev-'+id);
+      if (body) body.classList.add('open');
+      if (chev) chev.classList.add('open');
+    });
+  }
+
+  document.getElementById('completedListsList').innerHTML = done.map(l => {
+    const li           = getOrderItems(l);
+    const completedStr = formatTs(l.completedAt);
+    return `<div class="soc" onclick="toggleOrderExpand(this)">
+      <div class="soc-hdr">
+        <div class="soc-name">${esc(l.name)}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="soc-status complete">Completed</span>
+          <span class="soc-chevron">▼</span>
+        </div>
+      </div>
+      <div class="soc-meta">${li.length} item${li.length===1?'':'s'}${completedStr?` · Shopped ${completedStr}`:''}</div>
+      <div class="soc-items">${li.map(listItemRow).join('')||'<p style="font-size:12px;color:var(--ink-lt);">No items recorded</p>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function flushPendingLists() {
+  pendingListWrites--;
+  if (pendingListWrites === 0 && _pendingLists) {
+    _pendingLists = null;
+    renderListPages();
+  }
+}
+
+// ── toggle list item checked in Firestore ──
+window.toggleListItem = async function(listId, itemIdx, el) {
+  el.classList.toggle('done');
+  const isChecked = el.classList.contains('done');
+  pendingListWrites++;
+  try {
+    const list = allLists.find(l => l.id === listId);
+    if (!list) throw new Error('List not found');
+    const items = getOrderItems(list).map((it, i) =>
+      i === itemIdx ? { ...it, checked: isChecked } : it
+    );
+    const { doc, updateDoc } = window._fb;
+    await updateDoc(doc(window._db,'lists',listId), { items, status: 'shopping' });
+  } catch(err) {
+    console.error('Toggle list item:', err);
+    el.classList.toggle('done'); // revert
+    showToast('Couldn\'t save — check connection');
+  } finally {
+    flushPendingLists();
+  }
+};
+
+// ── toggle list item out-of-stock in Firestore ──
+window.toggleListOOS = async function(listId, itemIdx, btn) {
+  const isOOS  = btn.classList.contains('active');
+  const newOOS = !isOOS;
+  btn.classList.toggle('active', newOOS);
+  btn.textContent = newOOS ? 'Out of stock' : 'OOS?';
+  const row = btn.closest('.shop-item');
+  if (row) row.classList.toggle('oos', newOOS);
+  pendingListWrites++;
+  try {
+    const list = allLists.find(l => l.id === listId);
+    if (!list) throw new Error('List not found');
+    const items = getOrderItems(list).map((it, i) =>
+      i === itemIdx ? { ...it, outOfStock: newOOS } : it
+    );
+    const { doc, updateDoc } = window._fb;
+    await updateDoc(doc(window._db,'lists',listId), { items });
+  } catch(err) {
+    console.error('Toggle list OOS:', err);
+    btn.classList.toggle('active', isOOS);
+    btn.textContent = isOOS ? 'Out of stock' : 'OOS?';
+    if (row) row.classList.toggle('oos', isOOS);
+    showToast('Couldn\'t save — check connection');
+  } finally {
+    flushPendingLists();
+  }
+};
+
+window.completeList = async function(listId) {
+  const list = allLists.find(l => l.id === listId);
+  if (!list) { showToast('List not found'); return; }
+  const unchecked = getOrderItems(list).filter(it => !it.checked && !it.outOfStock).length;
+  if (unchecked > 0) {
+    showToast(`${unchecked} item${unchecked>1?'s':''} still need checking off!`);
+    return;
+  }
+  try {
+    const { doc, updateDoc, serverTimestamp } = window._fb;
+    await updateDoc(doc(window._db,'lists',listId), { status:'complete', completedAt: serverTimestamp() });
+    showToast('🎉 List complete — great shopping, Erik!');
+  } catch(err) {
+    showToast('Error completing list — check connection');
+  }
+};
+
+window.deleteList = async function(listId) {
+  const list = allLists.find(l => l.id === listId);
+  if (!list) { showToast('List not found'); return; }
+  const label = list.status === 'complete' ? 'delete' : 'cancel and delete';
+  if (!confirm(`${label.charAt(0).toUpperCase()+label.slice(1)} "${list.name}"? This cannot be undone.`)) return;
+  try {
+    const { doc, deleteDoc } = window._fb;
+    await deleteDoc(doc(window._db, 'lists', listId));
+    showToast('List deleted');
+    if (editingListId === listId) resetListDraft();
+  } catch(err) {
+    showToast('Error deleting list — check connection');
+  }
+};
+
+// ── per-store active badges (picker + list nav) ──
+function updateListBadges() {
+  const counts = { target:0, grocery:0 };
+  allLists.forEach(l => {
+    if ((l.status==='active' || l.status==='shopping') && l.store in counts) counts[l.store]++;
+  });
+  Object.entries(counts).forEach(([store, n]) => {
+    const b = document.getElementById('storeBadge-'+store);
+    b.textContent = n||'';
+    b.classList.toggle('show', n>0);
+  });
+  const n = counts[currentStore] || 0;
+  const navBadge = document.getElementById('listShopBadge');
+  navBadge.textContent = n||'';
+  navBadge.classList.toggle('show', n>0);
 }
 
 // ═══════════════════════════════════════════════
