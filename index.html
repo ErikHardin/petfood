@@ -19,7 +19,7 @@
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getFirestore, collection, doc,
            addDoc, updateDoc, setDoc, onSnapshot,
-           query, orderBy, serverTimestamp, getDoc, deleteDoc }
+           query, orderBy, serverTimestamp, getDoc, deleteDoc, runTransaction }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
   import { getStorage, ref as sRef,
            uploadBytes, getDownloadURL }
@@ -42,7 +42,7 @@
   window._db   = db;
   window._stor = stor;
   window._fb   = { collection, doc, addDoc, updateDoc, setDoc, onSnapshot,
-                   query, orderBy, serverTimestamp, getDoc, deleteDoc,
+                   query, orderBy, serverTimestamp, getDoc, deleteDoc, runTransaction,
                    sRef, uploadBytes, getDownloadURL };
   window._fbReady = true;
   document.dispatchEvent(new Event('fb-ready'));
@@ -402,6 +402,7 @@ button:disabled{opacity:.5;cursor:not-allowed!important;}
 .si-sub{font-size:11px;color:var(--ink-lt);}
 .si-qty{background:var(--parchment);color:var(--ink-mid);border-radius:7px;padding:4px 9px;font-size:13px;font-weight:700;border:1px solid var(--warm-mid);transition:all .2s;}
 .shop-item.done .si-qty{background:var(--green-lt);border-color:var(--green-bd);color:var(--green);}
+.si-new{display:inline-block;background:var(--rust);color:white;font-size:9px;font-weight:700;letter-spacing:.8px;padding:1px 6px;border-radius:20px;margin-left:6px;vertical-align:middle;}
 .si-oos-btn{background:none;border:1.5px solid var(--warm-mid);border-radius:20px;padding:3px 9px;font-size:11px;font-weight:500;cursor:pointer;color:var(--ink-lt);font-family:'DM Sans',sans-serif;white-space:nowrap;flex-shrink:0;transition:all .2s;}
 .si-oos-btn.active{background:#FFF0ED;border-color:var(--rust);color:var(--rust);}
 .shop-item.oos{opacity:.7;}
@@ -822,7 +823,7 @@ nav.hidden{display:none;}
   <!-- ══════════ LIST ORDER (Target / Groceries) ══════════ -->
   <div class="page" id="page-list-order">
     <div class="section-title" id="listOrderTitle">Create a List</div>
-    <div class="section-sub">Add items — Erik will shop it. 🛒</div>
+    <div class="section-sub" id="listOrderSub">Add items — Erik will shop it. 🛒</div>
     <div class="edit-mode-note" id="listEditNote" style="display:none;">
       <span>✏️ Editing: <strong id="listEditName"></strong></span>
       <button class="btn-cancel-edit" onclick="cancelListEdit()">✕ Cancel</button>
@@ -850,7 +851,11 @@ nav.hidden{display:none;}
     </div>
 
     <div id="listDraftCard" style="display:none;">
-      <div class="card">
+      <div class="card" id="listTargetCard" style="display:none;">
+        <div class="card-label" style="margin-bottom:7px;">🛒 Send to</div>
+        <div class="fg"><select id="listTarget" onchange="setListTarget(this.value)"></select></div>
+      </div>
+      <div class="card" id="listNameCard">
         <div class="card-label" style="margin-bottom:7px;">🏷️ List name</div>
         <div class="fg"><input type="text" id="listName" placeholder="e.g. Weekend run"></div>
       </div>
@@ -1230,6 +1235,7 @@ whenFB(() => {
     snap => {
       try {
         allLists = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+        noticeNewListItems(snap.metadata && snap.metadata.hasPendingWrites);
         if (pendingListWrites === 0) {
           renderListPages();
         } else {
@@ -2060,6 +2066,10 @@ let newListQty        = 1;
 let editingListId     = null;
 let pendingListWrites = 0;
 let _pendingLists     = null;
+let listTargetChoice  = null;   // null = auto, 'new', or a list id
+let knownListCounts   = null;   // Map<listId, itemCount>; null until first snapshot
+const localAppendIds  = new Set();
+const forceOpenListIds = new Set();
 
 window.openStorePicker = function() {
   document.getElementById('storeScreen').classList.remove('hidden');
@@ -2160,7 +2170,63 @@ function renderListDraft() {
       </div>
       <button class="opi-del" onclick="removeListDraftItem(${idx})" title="Remove">✕</button>
     </div>`).join('');
+  renderListTarget();
 }
+
+// ── "Send to" selector: new list, or append to a list Erik is shopping ──
+function activeStoreLists() {
+  return storeLists().filter(l => l.status==='active' || l.status==='shopping');
+}
+
+function currentListTarget() {
+  const active = activeStoreLists();
+  if (listTargetChoice === 'new') return 'new';
+  if (listTargetChoice && active.some(l => l.id === listTargetChoice)) return listTargetChoice;
+  return active.length === 1 ? active[0].id : 'new';
+}
+
+function renderListTarget() {
+  if (!currentStore || currentStore === 'paw') return;
+  const active  = activeStoreLists();
+  const target  = editingListId ? 'new' : currentListTarget();
+  const card    = document.getElementById('listTargetCard');
+  const sel     = document.getElementById('listTarget');
+  const btn     = document.getElementById('sendListBtn');
+  card.style.display = (!editingListId && active.length) ? '' : 'none';
+  sel.innerHTML = `<option value="new">✨ New list</option>` + active.map(l => {
+    const items   = getOrderItems(l);
+    const found   = items.filter(it => it.checked).length;
+    const state   = l.status === 'shopping' ? `Erik shopping (${found}/${items.length} found)` : `${items.length} items, not started`;
+    return `<option value="${l.id}">➕ ${esc(l.name)} — ${state}</option>`;
+  }).join('');
+  sel.value = target;
+  document.getElementById('listNameCard').style.display = target === 'new' ? '' : 'none';
+  if (!btn.disabled) {
+    const list = active.find(l => l.id === target);
+    btn.textContent = editingListId ? '✅ Update List'
+      : list ? `➕ Add to "${list.name}"`
+      : "✅ Send to Erik's Shopping List";
+  }
+  const shopping = active.some(l => l.status === 'shopping');
+  document.getElementById('listOrderSub').textContent = shopping
+    ? 'Erik is shopping — add items to his list below. 🛒'
+    : 'Add items — Erik will shop it. 🛒';
+}
+
+window.setListTarget = function(value) {
+  listTargetChoice = value;
+  renderListTarget();
+};
+
+window.addItemsToList = function(listId) {
+  if (editingListId) resetListDraft();
+  listTargetChoice = listId;
+  renderListTarget();
+  switchPage('list-order');
+  document.getElementById('liName').focus();
+  const list = allLists.find(l => l.id === listId);
+  if (list) showToast(`Add items, then tap Add to "${list.name}"`);
+};
 
 window.adjListDraftQty = function(idx, delta) {
   if (!listDraft[idx]) return;
@@ -2184,7 +2250,7 @@ function resetListDraft() {
   document.getElementById('liNote').value            = '';
   document.getElementById('listName').value          = '';
   document.getElementById('listEditNote').style.display = 'none';
-  document.getElementById('sendListBtn').textContent = "✅ Send to Erik's Shopping List";
+  listTargetChoice = null;
   renderListDraft();
 }
 
@@ -2215,6 +2281,7 @@ window.saveList = async function() {
   const btn        = document.getElementById('sendListBtn');
   const wasEditing = editingListId;
   const store      = currentStore;
+  const appendTo   = wasEditing ? null : currentListTarget();
   btn.disabled = true; btn.textContent = 'Saving…';
 
   const items = listDraft.map(it => ({
@@ -2222,7 +2289,10 @@ window.saveList = async function() {
   }));
 
   try {
-    if (wasEditing) {
+    if (appendTo && appendTo !== 'new') {
+      const listName = await appendToList(appendTo, items);
+      showToast(`Added ${items.length} item${items.length===1?'':'s'} to "${listName}" 🛒`);
+    } else if (wasEditing) {
       const { doc, updateDoc } = window._fb;
       await updateDoc(doc(window._db,'lists',wasEditing), { name, items });
       showToast(`"${name}" updated! ✅`);
@@ -2239,9 +2309,61 @@ window.saveList = async function() {
     showToast('Save failed — check connection');
   } finally {
     btn.disabled = false;
-    btn.textContent = editingListId ? '✅ Update List' : "✅ Send to Erik's Shopping List";
+    renderListTarget();
   }
 };
+
+// Append items to a list atomically, so Erik's check-offs and these
+// new items never overwrite each other.
+async function appendToList(listId, newItems) {
+  const { doc, runTransaction } = window._fb;
+  const ref = doc(window._db, 'lists', listId);
+  localAppendIds.add(listId);
+  try {
+    return await runTransaction(window._db, async tx => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error('List not found');
+      const data  = snap.data();
+      const added = newItems.map(it => ({ ...it, addedLate: true, addedAt: Date.now() }));
+      const update = { items: [...getOrderItems(data), ...added] };
+      if (data.status === 'complete') update.status = 'shopping';
+      tx.update(ref, update);
+      return data.name;
+    });
+  } finally {
+    setTimeout(() => localAppendIds.delete(listId), 3000);
+  }
+}
+
+// Update one item inside a transaction (fresh read → change → write).
+async function updateListItem(listId, itemIdx, changes, extra = {}) {
+  const { doc, runTransaction } = window._fb;
+  const ref = doc(window._db, 'lists', listId);
+  await runTransaction(window._db, async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('List not found');
+    const items = getOrderItems(snap.data()).map((it, i) =>
+      i === itemIdx ? { ...it, ...changes } : it
+    );
+    tx.update(ref, { items, ...extra });
+  });
+}
+
+// Popup + auto-expand when another device adds items to an active list
+function noticeNewListItems(hasPendingWrites) {
+  const first = knownListCounts === null;
+  const prev  = knownListCounts || new Map();
+  knownListCounts = new Map(allLists.map(l => [l.id, getOrderItems(l).length]));
+  if (first || hasPendingWrites) return;
+  allLists.forEach(l => {
+    if (!(l.status==='active' || l.status==='shopping') || !prev.has(l.id)) return;
+    const added = knownListCounts.get(l.id) - prev.get(l.id);
+    if (added <= 0 || localAppendIds.has(l.id)) return;
+    forceOpenListIds.add(l.id);
+    const storeName = STORES[l.store] ? STORES[l.store].name + ' · ' : '';
+    showToast(`🆕 ${added} new item${added===1?'':'s'} added to ${storeName}"${l.name}"`);
+  });
+}
 
 // ── render both list pages for the current store ──
 function renderListPages() {
@@ -2249,6 +2371,7 @@ function renderListPages() {
   const lists = storeLists();
   renderPastLists(lists);
   renderListShopping(lists);
+  renderListTarget();
 }
 
 function listItemRow(it) {
@@ -2280,7 +2403,8 @@ function renderPastLists(lists) {
       </div>
       <div class="soc-meta">${createdStr ? createdStr+' · ' : ''}${li.length} item${li.length===1?'':'s'} · ${checked}/${li.length} checked${completedStr?` · Shopped ${completedStr}`:''}</div>
       <div onclick="event.stopPropagation()">
-        ${canEdit ? `<button class="btn-order-edit" onclick="editList('${l.id}')">✏️ Edit List</button>` : ''}
+        ${canEdit ? `<button class="btn-order-edit" onclick="editList('${l.id}')">✏️ Edit List</button>`
+          : l.status !== 'complete' ? `<button class="btn-order-edit" onclick="addItemsToList('${l.id}')">➕ Add Items</button>` : ''}
         <button class="btn-order-delete" onclick="deleteList('${l.id}')">${l.status==='complete' ? '🗑 Delete' : '✕ Cancel List'}</button>
       </div>
       <div class="soc-items">${li.map(listItemRow).join('')||'<p style="font-size:12px;color:var(--ink-lt);">No items</p>'}</div>
@@ -2317,7 +2441,7 @@ function renderListShopping(lists) {
           <div class="si-check">✓</div>
           <div class="si-icon">🛍️</div>
           <div class="si-info">
-            <div class="si-name">${esc(it.name)}</div>
+            <div class="si-name">${esc(it.name)}${it.addedLate && !it.checked && !it.outOfStock ? '<span class="si-new">NEW</span>' : ''}</div>
             ${it.note ? `<div class="si-sub">${esc(it.note)}</div>` : ''}
           </div>
           <div class="si-qty">×${it.qty||1}</div>
@@ -2344,6 +2468,8 @@ function renderListShopping(lists) {
       </div>`;
     }).join('');
 
+    forceOpenListIds.forEach(id => openIds.add(id));
+    forceOpenListIds.clear();
     openIds.forEach(id => {
       const body = document.getElementById('aoc-body-'+id);
       const chev = document.getElementById('aoc-chev-'+id);
@@ -2383,13 +2509,7 @@ window.toggleListItem = async function(listId, itemIdx, el) {
   const isChecked = el.classList.contains('done');
   pendingListWrites++;
   try {
-    const list = allLists.find(l => l.id === listId);
-    if (!list) throw new Error('List not found');
-    const items = getOrderItems(list).map((it, i) =>
-      i === itemIdx ? { ...it, checked: isChecked } : it
-    );
-    const { doc, updateDoc } = window._fb;
-    await updateDoc(doc(window._db,'lists',listId), { items, status: 'shopping' });
+    await updateListItem(listId, itemIdx, { checked: isChecked }, { status: 'shopping' });
   } catch(err) {
     console.error('Toggle list item:', err);
     el.classList.toggle('done'); // revert
@@ -2409,13 +2529,7 @@ window.toggleListOOS = async function(listId, itemIdx, btn) {
   if (row) row.classList.toggle('oos', newOOS);
   pendingListWrites++;
   try {
-    const list = allLists.find(l => l.id === listId);
-    if (!list) throw new Error('List not found');
-    const items = getOrderItems(list).map((it, i) =>
-      i === itemIdx ? { ...it, outOfStock: newOOS } : it
-    );
-    const { doc, updateDoc } = window._fb;
-    await updateDoc(doc(window._db,'lists',listId), { items });
+    await updateListItem(listId, itemIdx, { outOfStock: newOOS });
   } catch(err) {
     console.error('Toggle list OOS:', err);
     btn.classList.toggle('active', isOOS);
